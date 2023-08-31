@@ -1,0 +1,415 @@
+---
+title: "Community size maize roots"
+subtitle: "Thoenen_et_al_BX_tolerance"
+author: "Lisa Thoenen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    fig_caption: yes
+    fig_height: 10
+    fig_width: 10
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+### Background
+We conducted this experiment to investigate wheater bacterial community size differs between plants producing different amounts of benzoxazinoids. 
+
+Plants were grown in Changins field soil for 6 weeks and fertilized. 
+Maize and was grown in 1 L pots. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+rm(list=ls())
+```
+
+```{r,include=FALSE}
+# install.packages("dplyr")
+# install.packages("magrittr")
+# install.packages("tidyr")
+# install.packages("stringr")
+# install.packages("ggpubr")
+# install.packages("readxl")
+# install.packages("pander")
+# install.packages("ggplot2")
+# install.packages("multcomp")
+# install.packages("multcompView")
+# install.packages("emmeans")
+# install.packages("forcats")
+# install.packages('tinytex')
+# install.packages("ggbeeswarm")
+```
+
+```{r libraries, echo=F, message=F, warning=F}
+library("dplyr")
+library("magrittr")
+library("tidyr")
+library("stringr")
+library("ggpubr")
+library("readxl")
+library("pander")
+library("ggplot2")
+library("multcomp")
+library("multcompView")
+library("emmeans")
+library("forcats")
+library("ggbeeswarm")
+```
+
+```{r functions, echo=F, message=F, warning=F}
+give.n <- function(x){
+  return(c(y = median(x)*1.05, label = length(x))) 
+  # experiment with the multiplier to find the perfect position
+}
+```
+
+# CFU Plating experiments
+
+## Greenhouse experiment 1
+
+```{r, warning=F, echo=F, message=F, include=F}
+dataGH1 <- read.csv("Input/CFU_plating_GH_exp_1.csv") # Data 18.9.2020
+```
+
+```{r, warning=F, echo=F, message=F, include=F}
+## experimental factors
+dataGH1$compartment <- factor(dataGH1$compartment, levels=c("rhizo","root"))
+dataGH1$genotype <- factor(dataGH1$genotype, levels=c("WT","bx1"))
+
+dataGH1$cols <- dataGH1$groups
+levels(dataGH1$cols) <- c("gold", "palegreen2", "cornflowerblue", "darkorange", "darkorange4", "gold2", "palegreen3")
+
+colgroup <- c("gold", "palegreen2", "darkorange", "darkorange4", "gold2", "palegreen3")
+
+dataGH1 %<>% filter(!sample_ID %in% "B73-WT-Ch-1-root")
+
+dataGH1$CFU_DMSO_2_log <- log10(dataGH1$CFU_DMSO_2)
+
+dataGH1
+
+dataGH1_design <- dataGH1 %>% 
+  filter(groups %in% c("B73_WT_Ch_root", "B73_bx1_Ch_root")) %>% 
+  mutate(genotype_compartment = interaction(genotype, compartment))
+
+
+table(dataGH1_design$genotype_compartment) %>% knitr::kable()
+
+```
+
+*Fig. S1A*
+
+```{r, echo=FALSE, message=F, warning=F, fig.width=7, fig.height=5}
+CFU_GH_exp1 <- dataGH1 %>% 
+  filter(groups %in% c("B73_WT_Ch_root", "B73_bx1_Ch_root")) %>% 
+  mutate(groups = factor(groups,levels=c("B73_WT_Ch_root", "B73_bx1_Ch_root"))) %>%
+  ggplot(aes(x = genotype, y = log10(CFU_DMSO_2))) +
+  geom_boxplot(aes(fill = genotype), outlier.color = NA, show.legend = FALSE) +
+  ylim(c(6, 8))+
+  geom_jitter(width=0.1) +
+  stat_compare_means(method = "t.test", aes(x = genotype, y = log10(CFU_DMSO_2)), label.y = 7.8, label.x = 1) +
+  scale_fill_manual(values = c("gold", "forestgreen")) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  theme_bw() +
+  labs(x = " ",
+        y = "log10(CFU/g)")
+
+CFU_GH_exp1
+
+# ggsave(plot = CFU_GH_exp1,  filename = "CFU_GH_exp1.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = CFU_GH_exp1,  filename = "CFU_GH_exp1.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+## Greenhouse experiment 2
+
+```{r, warning=F, echo=F, message=F}
+dataGH2 <- read.csv("Input/CFU_plating_GH_exp_2.csv")
+
+## experimental factors
+dataGH2$compartment <- factor(dataGH2$compartment, levels=c("root", "rhizo", "soil"))
+dataGH2$species <- factor(dataGH2$species, levels=c("B73_WT","B73_bx1", "Tri", "Med", "Bra", "Ara"))
+
+dataGH2$cols <- dataGH2$groups
+levels(dataGH2$cols) <- c("gold", "forestgreen", "brown", "darkorange", "darkgoldenrod4", "khaki" )
+
+colgroup <- c("gold", "forestgreen", "brown", "darkorange", "darkgoldenrod4", "khaki" )
+```
+
+```{r, warning=F, echo=F, message=F}
+dataGH2$CFU_TSB_Chex_w_log <- log10(dataGH2$CFU_TSB_Chex_w)
+dataGH2$CFU_TSB_Chex_w_6d_log <- log10(dataGH2$CFU_TSB_Chex_w_6d)
+```
+
+```{r, echo=F, message=F, warning=F}
+dataGH2$species_2 <- dataGH2$species
+dataGH2 %<>% separate(species_2, c("background", "genotype"))
+dataGH2 %<>% mutate(genotype = factor(genotype, levels = c("WT", "bx1")))
+
+dataGH2_design <- dataGH2 %>% 
+  mutate(genotype_compartment = interaction(genotype, compartment))
+
+
+table(dataGH2_design$genotype_compartment) %>% knitr::kable()
+
+```
+
+*Fig. S1A*
+
+```{r, echo=FALSE, message=F, warning=F, fig.width=7, fig.height=5}
+CFU_GH_exp2 <- dataGH2 %>% 
+  filter(compartment %in% "root") %>%
+  filter(background %in% "B73") %>% 
+  ggplot(aes(x = genotype, y = log10(CFU_TSB_Chex_w_6d))) +
+  geom_boxplot(aes(fill = genotype), show.legend = FALSE, outlier.colour = NA) +
+  ylim(c(7.3, 9.7))+
+  geom_jitter(position = position_dodge(width=1)) +
+  stat_compare_means(method = "t.test", aes(x = genotype, y = log10(CFU_TSB_Chex_w_6d)), label.y = 9.5, label.x = 1) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) + 
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  theme_bw() +
+  labs(x = " ",
+        y = "log10(CFU/g)")
+
+CFU_GH_exp2
+
+# ggsave(plot = CFU_GH_exp2,  filename = "CFU_GH_exp2.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = CFU_GH_exp2,  filename = "CFU_GH_exp2.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+# qPCR 
+
+## Greenhouse experiments
+```{r, echo=F, message=F, warning=F}
+qPCR_GH <- read.csv("Input/qPCR_GH.csv")
+
+qPCR_GH %<>% mutate(Plant = factor(Plant, levels = c("B73_WT", "B73_bx1")))
+```
+
+```{r, echo=F, message=F, warning=F}
+Primer_Ref = "ZmActin1A" # Assign reference name
+Primer_Tar = "799F904R" 
+
+qPCR_GH$RBi <- (qPCR_GH$Mean.PCR.eff.799F904R ^ qPCR_GH$Cq.799F904R) / (qPCR_GH$Mean.PCR.eff.ZmActin1A ^ qPCR_GH$Cq.ZmActin1A)
+qPCR_GH$RBBacteria <- (qPCR_GH$Mean.PCR.eff.799F904R ^ qPCR_GH$Cq.799F904R) 
+qPCR_GH$RBPlant <- (qPCR_GH$Mean.PCR.eff.ZmActin1A ^ qPCR_GH$Cq.ZmActin1A)
+```
+
+# Normality
+If the Sig. value of the Shapiro-Wilk Test is greater than 0.05, the data is normal. If it is below 0.05, the data significantly deviate from a normal distribution.
+
+```{r, echo=F, message=F, warning=F}
+shapiro.test(qPCR_GH$RB)
+hist(qPCR_GH$RB)
+qqnorm(qPCR_GH$RB, pch = 1, frame = FALSE)
+qqline(qPCR_GH$RB, col = "steelblue", lwd = 2)
+
+shapiro.test(qPCR_GH$RBi)
+hist(qPCR_GH$RBi)
+
+qqnorm(qPCR_GH$RBi, pch = 1, frame = FALSE)
+qqline(qPCR_GH$RBi, col = "steelblue", lwd = 2)
+```
+
+```{r, echo=F, message=F, warning=F}
+qPCR_GH %<>% separate(Plant, c("Background", "Genotype"))
+
+qPCR_GH %<>% mutate(Genotype = factor(Genotype, levels = c("WT", "bx1")))
+
+qPCR_GH_design <- qPCR_GH %>% 
+  mutate(Genotype_Compartment = interaction(Genotype, Compartment, Batch, qPCR.Replicate))
+
+
+table(qPCR_GH_design$Genotype_Compartment) %>% knitr::kable()
+```
+
+*RB*
+E(plant gene) ^ Ct(plant gene) / E(16S) ^ Ct(16S)
+
+Low value means more more bacteria!
+
+*Fig. 6B Tolerance chapter*
+180 * 220
+
+Experiment 1 in september
+
+```{r, echo=F, message=F, warning=F}
+qPCR_GH_exp1 <- qPCR_GH %>% filter(Batch %in% "Sept") %>% 
+  ggplot(aes(x = Genotype, y = log2(RB))) +
+  geom_boxplot(aes(fill = Genotype), outlier.colour = NA, show.legend = FALSE) +
+  geom_jitter(show.legend = FALSE, width = 0.1) +
+  ylim(6.5, 9.5)+
+  stat_compare_means(method = "t.test", aes(x = Genotype, y = log2(RB)), label.y = 9.2, label.x = 1) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  theme_bw() +
+  labs(x = "")
+
+qPCR_GH_exp1
+
+# ggsave(plot = qPCR_GH_exp1,  filename = "qPCR_GH_exp1.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = qPCR_GH_exp1,  filename = "qPCR_GH_exp1.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+Experiment 2 in september
+
+```{r, echo=F, message=F, warning=F}
+qPCR_GH_exp2 <- qPCR_GH %>% filter(Batch %in% "Okt") %>% 
+  ggplot(aes(x = Genotype, y = log2(RB))) +
+  geom_boxplot(aes(fill = Genotype), outlier.colour = NA, show.legend = FALSE) +
+  geom_jitter(show.legend = FALSE, width = 0.1) +
+  ylim(6.5, 9.5)+
+  stat_compare_means(method = "t.test", aes(x = Genotype, y = log2(RB)), label.y = 9.2, label.x = 1) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  theme_bw() +
+  labs(x = "")
+
+qPCR_GH_exp2
+
+# ggsave(plot = qPCR_GH_exp2,  filename = "qPCR_GH_exp2.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = qPCR_GH_exp2,  filename = "qPCR_GH_exp2.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+# Field experiments
+
+```{r, echo=F, message=F, warning=F}
+qPCR_field <- read.csv("Input/qPCR_field.csv")
+
+Primer_Ref = "ZmActin1A" # Assign reference name
+
+Primer_Tar = "799F904R" 
+```
+
+# Normality
+If the Sig. value of the Shapiro-Wilk Test is greater than 0.05, the data is normal. If it is below 0.05, the data significantly deviate from a normal distribution.
+
+this dataset is not normally distributed for the RB value
+```{r, echo=F, message=F, warning=F}
+shapiro.test(qPCR_field$RB)
+hist(qPCR_field$RB)
+qqnorm(qPCR_field$RB, pch = 1, frame = FALSE)
+qqline(qPCR_field$RB, col = "steelblue", lwd = 2)
+```
+
+removing a wired sample
+```{r, echo=F, message=F, warning=F}
+qPCR_field %<>% 
+  unique() %>% 
+  filter(!Sample.ID %in% c("Reckenholz_W22_bx1_root_9_11.3")) 
+```
+
+*Fig. S1C*
+180 * 220
+
+log2(RB): without outliers filtering for Cq.799F904R > 10
+
+```{r, fig.width=7, fig.height=5, echo=F, tidy=T, message = F, warning = F}
+qPCR_field_Ch <- qPCR_field %>% 
+  filter(Location %in% "Changins") %>% 
+  filter(Genotype %in% c("WT", "bx1")) %>% 
+  filter(Cq.799F904R > 10) %>% 
+  mutate(Genotype = factor(Genotype, levels = c("WT", "bx1"))) %>% 
+  ggplot(aes(x = Genotype, y = log2(RB))) +
+  ylim(10,14)+
+  # geom_bar(aes(fill = Genotype), stat = "summary", show.legend = FALSE) +   
+  # geom_errorbar(stat = "summary", width = 0.3)+
+  geom_boxplot(aes(fill = Genotype), outlier.colour = NA, show.legend = FALSE)+
+  # geom_jitter(aes(shape = as.factor(qPCR.Replicate), colour = Sample), width = 0.1) +
+  geom_jitter(width = 0.1) +
+  stat_compare_means(method = "t.test", aes(x = Genotype, y = log2(RB)), label.y = 13.5, label.x = 1) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  # geom_text(aes(label = Sample.ID)) +
+  # geom_text(data=df_letters1_test_height_1, aes(x = test_height_1$groups, y=25, label = test_height_1$.group)) +
+  # stat_compare_means(label = "p.signif", method = "t.test", ref.group = "NBC", label.y = 6) +
+  # facet_wrap(~ interaction(Background, Location)) +
+  # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) +
+  theme_bw() +
+  labs(x = "")
+
+qPCR_field_Ch
+
+# ggsave(plot = qPCR_field_Ch,  filename = "qPCR_field_Ch.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = qPCR_field_Ch,  filename = "qPCR_field_Ch.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+```{r, fig.width=7, fig.height=5, echo=F, tidy=T, message = F, warning = F}
+qPCR_field_Reck <- qPCR_field %>% 
+  filter(Location %in% "Reckenholz") %>% 
+  filter(Background %in% "B73") %>% 
+  filter(Genotype %in% c("WT", "bx1")) %>% 
+  filter(Cq.799F904R > 10) %>% 
+  mutate(Genotype = factor(Genotype, levels = c("WT", "bx1"))) %>% 
+  ggplot(aes(x = Genotype, y = log2(RB))) +
+  ylim(14,20)+
+  # geom_bar(aes(fill = Genotype), stat = "summary", show.legend = FALSE) +   
+  # geom_errorbar(stat = "summary", width = 0.3)+
+  geom_boxplot(aes(fill = Genotype), outlier.colour = NA, show.legend = FALSE)+
+  # geom_jitter(aes(shape = as.factor(qPCR.Replicate), colour = Sample), width = 0.1) +
+  geom_jitter(width = 0.1) +
+  stat_compare_means(method = "t.test", aes(x = Genotype, y = log2(RB)), label.y = 19.75, label.x = 1) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  # geom_text(aes(label = Sample.ID)) +
+  # geom_text(data=df_letters1_test_height_1, aes(x = test_height_1$groups, y=25, label = test_height_1$.group)) +
+  # stat_compare_means(label = "p.signif", method = "t.test", ref.group = "NBC", label.y = 6) +
+  # facet_wrap(~ interaction(Background, Location)) +
+  # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) +
+  theme_bw() +
+  labs(x = "")
+
+qPCR_field_Reck
+
+# ggsave(plot = qPCR_field_Reck,  filename = "qPCR_field_Reck.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = qPCR_field_Reck,  filename = "qPCR_field_Reck.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+```{r, fig.width=7, fig.height=5, echo=F, tidy=T, message = F, warning = F}
+qPCR_field_Au <- qPCR_field %>% 
+  filter(Location %in% "Aurora") %>% 
+  filter(Genotype %in% c("WT", "bx1")) %>% 
+  filter(Cq.799F904R > 10) %>% 
+  mutate(Genotype = factor(Genotype, levels = c("WT", "bx1"))) %>% 
+  ggplot(aes(x = Genotype, y = log2(RB))) +
+  ylim(11,15)+
+  # geom_bar(aes(fill = Genotype), stat = "summary", show.legend = FALSE) +   
+  # geom_errorbar(stat = "summary", width = 0.3)+
+  geom_boxplot(aes(fill = Genotype), outlier.colour = NA, show.legend = FALSE)+
+  # geom_jitter(aes(shape = as.factor(qPCR.Replicate), colour = Sample), width = 0.1) +
+  geom_jitter(width = 0.1) +
+  stat_compare_means(method = "t.test", aes(x = Genotype, y = log2(RB)), label.y = 14.5, label.x = 1) +
+  scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
+  # geom_text(aes(label = Sample.ID)) +
+  # geom_text(data=df_letters1_test_height_1, aes(x = test_height_1$groups, y=25, label = test_height_1$.group)) +
+  # stat_compare_means(label = "p.signif", method = "t.test", ref.group = "NBC", label.y = 6) +
+  # facet_wrap(~ interaction(Background, Location)) +
+  # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
+  scale_fill_manual(values = c( "gold", "forestgreen")) +
+  theme_bw() +
+  labs(x = "")
+
+qPCR_field_Au
+
+# ggsave(plot = qPCR_field_Au,  filename = "qPCR_field_Au.pdf", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = qPCR_field_Au,  filename = "qPCR_field_Au.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
+```
+
+```{r}
+
+```
+
+
