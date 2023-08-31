@@ -1,0 +1,516 @@
+---
+title: "Maize root bacteria isolates phylogeny"
+author: "Lisa Thönen"
+date: "March 2023"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cerulean
+    code_folding: show
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+rm(list=ls())
+```
+
+```{r,include=FALSE}
+# install.packages("dplyr")
+# install.packages("plyr")
+# install.packages("magrittr")
+# install.packages("ggplot2")
+# install.packages("readxl")
+# install.packages("tidyr")
+# install.packages("readr")
+# install.packages("stringr")
+# install.packages("ggplot2")
+# install.packages("forcats")
+# install.packages("ggpmisc")
+# install.packages("pander")
+# install.packages("tidyr")
+# install.packages("tibble")
+# install.packages("RColorBrewer")
+# install.packages("pheatmap")
+# install.packages("ggdendro")
+# install.packages("reshape2")
+# install.packages("grid")
+# install.packages("ape")
+# install.packages("ggtree")
+# install.packages("aplot")
+# install.packages("wesanderson")
+# install.packages("ggsci")
+# install.packages("ggnewscale")
+# install.packages("data.tree")
+# install.packages("networkD3")
+# install.packages("Cairo")
+
+# install.packages("ggtreeExtra")
+# install.packages("treeio")
+# 
+# install.packages(pckgs)
+
+# ggtree package
+
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#      install.packages("BiocManager")
+# 
+# BiocManager::install("ggtree")
+
+# BiocManager::install("ggtreeExtra")
+```
+
+```{r, include=FALSE}
+library(plyr) # please load plyr first, then dplyr
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(readxl)
+library(tidyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(ggpmisc)
+library(pander)
+library(tidyr)
+library(tibble)
+library(RColorBrewer)
+library(pheatmap)
+library(ggdendro)
+library(reshape2)
+library(grid)
+library(ape)
+library(ggtree)
+# library(aplot)
+library(wesanderson)
+library(ggsci)
+library(ggnewscale)
+library(data.tree)
+library(networkD3)
+library(Cairo)
+# library(ggtreeExtra)
+# library(treeio)
+```
+
+
+# Load and format input data
+Input: *Metadata bacteria:* Database_MRB_isolates & database_raw, *Mapping results:* Mapping in 4 soils and feedback, *Phylogeny:* Tree compouted from 16s sequences
+
+```{r, warning=FALSE, include=FALSE}
+sequences <- read_excel("./Input/190313_SynCom_tree_sequences.xlsx")
+database_raw <- read_excel("./Input/__Database_MRB_isolates_sequences.xlsx")
+Database_MRB_isolates <- read.csv("./Input/Database_MRB_isolates.csv")
+Database_MRB_isolates %<>% dplyr::select(Strain, Strain_old.x) 
+```
+
+```{r, warning=FALSE, include=FALSE}
+database_raw <- left_join(database_raw, Database_MRB_isolates, by = "Strain")
+database_raw <- database_raw %>% dplyr::select(-Strain_old.x)
+```
+
+```{r, warning=FALSE, include=FALSE}
+### Newick tree ###
+Tree_16s_unique <- 
+   ggtree::read.tree("./Input/220427_Tree_Marco_RAxML_bipartitionsBranchLabels.concatenated_rooted")
+
+# Tree_16s_unique <- phytools::read.newick("../220427_Tree_Marco_RAxML_bipartitionsBranchLabels.concatenated_rooted")
+
+Tree_16s_unique$tip.label <- gsub("_1492r","", Tree_16s_unique$tip.label)
+Tree_16s_unique$tip.label <- gsub("_27f","", Tree_16s_unique$tip.label)
+```
+
+```{r, warning=FALSE, include=FALSE}
+Mapping4soils <- read_rds("./Input/all_phy_psmelt_iso_BX_abundance_cum.rds")
+
+Mapping4soils_mean_abundance_ASV_cum <- Mapping4soils
+
+HuFeedback <- read_rds("./Input/all_phy_psmelt_FB_BXp_iso_new_mapping_cum_abun.rds")
+
+HuFeedback_mean_abundance <- HuFeedback
+
+HuFeedback_Mapping4soils <- rbind(HuFeedback_mean_abundance %>% mutate(compartment = "root") %>% mutate(location = "Greenhouse") %>% mutate(background = "B73") %>% mutate(exp = "feedback"), Mapping4soils_mean_abundance_ASV_cum %>% mutate(exp = "field") %>%  filter(compartment %in% "root"))
+
+Mapping_4soils_Hu <- HuFeedback_Mapping4soils %>% mutate(location_background_exp = interaction(location, background, exp, sep = "_")) %>% as.data.frame() %>%  dplyr::select(-location, -background, -exp, -compartment)  %>% unique() %>% group_by(Strain, location_background_exp) %>% pivot_wider(names_from = location_background_exp, values_from = Abundance_cum_Strain)
+```
+
+```{r, warning=FALSE, include=FALSE}
+database <- left_join(database_raw, Mapping_4soils_Hu, by = "Strain") %>% unique()
+```
+
+```{r, warning=FALSE, include=FALSE}
+database$Primer_rv <- gsub("NA", "27f", database$Primer_rv)
+database$Isolation_media <- gsub("TSB_MBOA_fridge", "TSB_MBOA", database$Isolation_media)
+database$Isolation_media <- gsub("TSB_MBOA_species", "TSB_MBOA", database$Isolation_media)
+database$Isolation_media <- gsub("TSB_MBOA_compartment", "TSB_MBOA", database$Isolation_media)
+database$Isolation_media <- gsub("TSB_full_Katja", "TSB_MBOA", database$Isolation_media)
+database$Isolation_media <- gsub("Strep", "Flour", database$Isolation_media)
+database$Isolation_media <- gsub("Rif", "PseudoA", database$Isolation_media)
+```
+
+```{r, warning=FALSE, include=FALSE}
+database$Plant <- gsub("B73_WT_root", "B73_WT", database$Plant)
+database$Plant <- gsub("B73_WT_RoRh", "B73_WT", database$Plant)
+database$Plant <- gsub("B73_WT_rhizo", "B73_WT", database$Plant)
+database$Plant <- gsub("B73_bx_rhizo", "B73_bx1", database$Plant)
+database$Plant <- gsub("B73_bx_root", "B73_bx1", database$Plant)
+database$Plant <- gsub("B73_WT_soil", "soil", database$Plant)
+database$Plant <- gsub("B73_bx_soil", "soil", database$Plant)
+
+database$Plant <- factor(database$Plant, levels=c("B73_WT",  "B73_bx1",  "wheat",  "medicago", "brassica", "arabidopsis", "soil"))
+```
+
+```{r, warning=FALSE, include=FALSE}
+database$Genome <- gsub("NA", "no", database$Genome)
+database$Genome <- gsub("Bern", "yes", database$Genome)
+database$Genome <- gsub("Spain", "yes", database$Genome)
+database$Genome <- gsub("Zurich", "yes", database$Genome)
+```
+
+```{r, warning=FALSE, include=FALSE}
+database$Genus <- gsub("Allorhizobium-Neorhizobium-Pararhizobium-Rhizobium", "Rhizobium", database$Genus)
+database$Genus <- gsub("Micrococcineae", "Microbacterium", database$Genus)
+database$Phylum <- gsub("Deinococcota", "Deinococcus-Thermus", database$Phylum)
+database$Phylum <- gsub("Actinobacteriota", "Actinobacteria", database$Phylum)
+database$Phylum <- gsub("Bacteroidota", "Bacteroidetes", database$Phylum)
+```
+
+```{r, warning=FALSE, include=FALSE}
+# Assignment of colours plant
+
+database$cols <- as.character(database$Plant)
+database[database$Plant == "B73_WT", ]$cols <- "gold" 
+database[database$Plant == "B73_bx1", ]$cols <- "forestgreen" 
+database[database$Plant == "wheat", ]$cols <- "tan3" 
+database[database$Plant == "medicago", ]$cols <- "salmon4"
+database[database$Plant == "brassica", ]$cols <- "khaki4" 
+database[database$Plant == "arabidopsis", ]$cols <- "khaki3" 
+database[database$Plant == "soil", ]$cols <-  "wheat" 
+
+## collapsed color vector for each level
+temp <- data.frame(database$Plant, database$cols)
+temp <- plyr::ddply(temp, .variables="database.Plant", .fun=unique)   
+level_cols_plants <- as.character(temp[,2])
+names(level_cols_plants) <- temp[,1]
+```
+
+```{r, warning=FALSE, include=FALSE}
+# Assignment of colours families
+
+database$cols_Family <- as.character(database$Family)
+database$Family <- gsub("Chitinophagales", "Chitinophagaceae", database$Family)
+database$Family <- gsub("Pseudomonadales", "Pseudomonadaceae", database$Family)
+database[database$Family=="Bacillaceae" , ]$cols_Family <- "#004586"
+database[database$Family=="Chitinophagaceae" , ]$cols_Family <- "#ff420e"
+database[database$Family=="Enterobacteriaceae" , ]$cols_Family <- "#ffd320"
+database[database$Family=="Erwiniaceae" , ]$cols_Family <- "#579d1c"
+database[database$Family=="Microbacteriaceae" , ]$cols_Family <- "#7e0021"
+database[database$Family=="Micrococcaceae" , ]$cols_Family <- "#83caff"
+database[database$Family=="Nocardioidaceae" , ]$cols_Family <- "#314004"
+database[database$Family=="Oxalobacteraceae" , ]$cols_Family <- "#aecf00"
+database[database$Family=="Pseudomonadaceae" , ]$cols_Family <- "#4b1f6f"
+database[database$Family=="Rhizobiaceae", ]$cols_Family <- "#ff950e"
+database[database$Family=="Sphingomonadaceae", ]$cols_Family <- "#c5000b"
+database[database$Family=="Xanthomonadaceae", ]$cols_Family <- "#0084d1"
+database[database$Family=="Streptomycetaceae" , ]$cols_Family <- "#8b995a"
+database[database$Family=="Flavobacteriaceae" , ]$cols_Family <- "#F0D5B4"
+database[database$Family=="Paenibacillaceae" , ]$cols_Family <- "#8f9ec9"
+database[database$Family=="Planococcaceae", ]$cols_Family <- "#7F5757"
+database[database$Family=="Moraxellaceae", ]$cols_Family <- "#a73e62"
+database[database$Family=="Sphingobacteriaceae", ]$cols_Family <- "#c75536"
+database[database$Family=="Deinococcaceae", ]$cols_Family <- "#031e33"
+database[database$Family=="Weeksellaceae", ]$cols_Family <- "grey"
+
+## collapsed color vector for each level
+temp <- data.frame(database$Family, database$cols_Family)
+temp <- plyr::ddply(temp, .variables="database.cols_Family", .fun=unique)   
+database_level_cols_Family <- as.character(temp[,2])
+names(database_level_cols_Family) <- temp[,1]
+```
+
+```{r, warning=FALSE, include=FALSE}
+# Assignment of colours phylum
+
+database$cols_Phylum <- as.character(database$Phylum)
+database[database$Phylum=="Firmicutes" , ]$cols_Phylum <- "#004586" 
+database[database$Phylum=="Proteobacteria" , ]$cols_Phylum <- "#7e0021"
+database[database$Phylum=="Actinobacteria" , ]$cols_Phylum <- "#579d1c"
+database[database$Phylum=="Bacteroidetes" , ]$cols_Phylum <- "#ffd320" 
+database[database$Phylum=="Deinococcus-Thermus" , ]$cols_Phylum <- "#ff950e"
+
+## collapsed color vector for each level
+temp <- data.frame(database$Phylum, database$cols_Phylum)
+temp <- plyr::ddply(temp, .variables="database.cols_Phylum", .fun=unique)   
+database_level_cols_Phylum <- as.character(temp[,2])
+names(database_level_cols_Phylum) <- temp[,1]
+```
+
+# Phylogeny 
+Phylogeny without tree using radialNetwork()
+```{r, warning=FALSE, error = FALSE, echo=FALSE, message=FALSE, fig.width=10, fig.height=7.5}
+database %>% 
+  dplyr::select(Phylum, Family, Genus, Strain) %>% 
+  na.omit() %>% 
+  filter(!Phylum %in% "NA") %>% 
+  mutate(pathString = paste(Phylum, Family, Genus, Strain, sep = "/")) %>%
+  as.data.frame() %>% 
+  as.Node() %>% 
+  ToListExplicit(.,unname = TRUE) %>% 
+  radialNetwork(fontSize=15)
+```
+
+
+```{r, warning=FALSE, include=FALSE}
+# Phylogeny with tree (Newick tree)
+
+ptree <- Tree_16s_unique %>%
+  ggtree(aes(x =0.1), branch.length = "none", ladderize = FALSE, layout = "circular") +
+    geom_tiplab(size=3)
+
+ptree
+```
+
+```{r, warning=FALSE, include=FALSE}
+# join metadata to the tree
+
+tree_data <- database %>% mutate(id = str_c(Genus, Strain, sep ="_")) 
+
+MBOA_tolerance_MRB <- read.csv("./Input/all_MBOA_tolerance_MRB.csv")
+MBOA_tolerance_MRB %<>% mutate(tolerance_test = "TRUE")
+
+tree_data <- left_join(tree_data, MBOA_tolerance_MRB, by = "Strain")
+
+# filter strains in tree
+strains_tree <- Tree_16s_unique$tip.label %>% unique() 
+database_raw %>% filter(!Strain %in% strains_tree) %>% unique() 
+```
+
+# Trees
+```{r, warning = FALSE, error = FALSE, echo=FALSE, message=FALSE, fig.width=15, fig.height=12}
+database_Strain_Family <- database %>% dplyr::select(Strain, Family) %>% filter(Strain %in% strains_tree)
+
+tree_shading_family_branch_line <- ggtree::ggtree(Tree_16s_unique, branch.length = "branch.length", layout = "circular") %<+% database_Strain_Family +
+   geom_tippoint(aes(color = Family), size = 2) 
+ # geom_tiplab(align = TRUE) 
+#   linesize = 0.5,
+#   geom = "text",
+#   offset = 0,
+#   as_ylab = FALSE) +
+#   geom_treescale(x=0.7, y=-1.1, fontsize=3, linesize=1, offset=1)+
+  # geom_highlight(node=204, fill='grey80', alpha=0.6, extendto=1)+
+  # geom_highlight(node=155, fill='grey80', alpha=0.6, extendto=1)+
+  # geom_highlight(node=225, fill='grey10', alpha=0.6, extendto=1)+
+  # geom_highlight(node=247, fill='grey40', alpha=0.6, extendto=1)+
+  # scale_color_manual(values = database_level_cols_Family)
+
+tree_shading_family_branch_line
+```
+
+```{r, warning = FALSE, error = FALSE, echo=FALSE, message=FALSE, fig.width=15, fig.height=12}
+database_Strain_Family <- database %>% dplyr::select(Strain, Family)
+
+tree_family_branch_line <- ggtree::ggtree(Tree_16s_unique, branch.length = "branch.length", ladderize = TRUE, layout = "circular") %<+% database_Strain_Family +
+  geom_tippoint(aes(color = Family), size = 2) +
+  geom_tiplab(align=TRUE, linetype='dashed', linesize=.3, size = 3, offset = 0.1) +
+  geom_treescale(x=0.7, y=-1.9, fontsize=3, linesize=1, offset=1)+
+  geom_balance(node=204, fill='grey80', alpha=0.6, extendto=1)+
+  geom_balance(node=155, fill='grey80', alpha=0.6, extendto=1)+
+  geom_balance(node=225, fill='grey10', alpha=0.6, extendto=1)+
+  geom_balance(node=247, fill='grey40', alpha=0.6, extendto=1)+
+  # geom_text(aes(label=node), hjust=-.3) +
+  scale_color_manual(values = database_level_cols_Family)
+
+tree_family_branch_line
+```
+
+# Abundance of isolates in microbiome
+Abundance of isolates from strain collection in microbiome datasets of the field & greenhouse
+Form quantitative values to quantitative. 
+Abundant strains are defined as abundance > 0.1. 
+
+```{r, warning=FALSE, include=FALSE}
+tree_data <- tree_data %>%
+  mutate(Greenhouse_B73_feedback_abundant = case_when(Greenhouse_B73_feedback > 0.1 ~ TRUE,
+                              Greenhouse_B73_feedback < 0.1 ~ FALSE)) %>%
+  mutate(Changins_B73_field_abundant = case_when(Changins_B73_field > 0.1 ~ TRUE,
+                              Changins_B73_field < 0.1 ~ FALSE)) %>%
+  mutate(Zurich_W22_field_abundant = case_when(Zurich_W22_field > 0.1 ~ TRUE,
+                              Zurich_W22_field < 0.1 ~ FALSE)) %>%
+  mutate(Zurich_B73_field_abundant = case_when(Zurich_B73_field  > 0.1 ~ TRUE,
+                              Zurich_B73_field  < 0.1 ~ FALSE)) %>%
+  mutate(Ithaca_W22_field_abundant = case_when(Ithaca_W22_field  > 0.1 ~ TRUE,
+                              Ithaca_W22_field  < 0.1 ~ FALSE)) %>%
+  mutate(Sheffield_W22_field_abundant = case_when(Sheffield_W22_field > 0.1 ~ TRUE,
+                              Sheffield_W22_field < 0.1 ~ FALSE))
+```
+
+```{r, warning=FALSE, include=FALSE}
+# List of strains in the phylogenetic tree
+strains <- Tree_16s_unique$tip.label %>% unique()
+strains %>% length()
+
+# Filter for the abundant strains
+tree_data_abundant <- tree_data %>% filter(Strain %in% strains) %>%
+                      dplyr::select(Greenhouse_B73_feedback_abundant, Changins_B73_field_abundant,
+                                    Zurich_W22_field_abundant, Zurich_B73_field_abundant,
+                                    Ithaca_W22_field_abundant, Sheffield_W22_field_abundant) 
+
+tree_data_strains_MRB <- tree_data %>% filter(Strain %in% strains)
+
+strains_abundant_fields <- 
+  cbind(tree_data_strains_MRB %>% 
+        dplyr::count(Greenhouse_B73_feedback_abundant) %>%
+        filter(Greenhouse_B73_feedback_abundant %in% TRUE),
+        tree_data_strains_MRB %>% 
+          dplyr::count(Changins_B73_field_abundant) %>% 
+          filter(Changins_B73_field_abundant %in% TRUE),
+        tree_data_strains_MRB %>% 
+          dplyr::count(Zurich_W22_field_abundant) %>% 
+          filter(Zurich_W22_field_abundant %in% TRUE),
+        tree_data_strains_MRB %>% 
+          dplyr::count(Zurich_B73_field_abundant) %>% 
+          filter(Zurich_B73_field_abundant %in% TRUE),
+        tree_data_strains_MRB %>% 
+          dplyr::count(Ithaca_W22_field_abundant) %>% 
+          filter(Ithaca_W22_field_abundant %in% TRUE),
+        tree_data_strains_MRB %>% 
+          dplyr::count(Sheffield_W22_field_abundant) %>% 
+          filter(Sheffield_W22_field_abundant %in% TRUE))
+
+colnames(strains_abundant_fields) <- c("Greenhouse_B73_feedback_abundant", "Greenhouse_B73",
+                                     "Changins_B73_field_abundant", "Changins_B73", 
+                                     "Zurich_W22_field_abundant", "Zurich_W22",    
+                                     "Zurich_B73_field_abundant", "Zurich_B73",   
+                                     "Ithaca_W22_field_abundant",   "Ithaca_W22",
+                                     "Sheffield_W22_field_abundant",  "Sheffield_W22")
+
+strains_abundant_fields %<>% dplyr::select(Greenhouse_B73, Changins_B73, Zurich_W22, Zurich_B73, Ithaca_W22, Sheffield_W22) %>% mutate(strains_total = "151")
+strains_abundant_fields %>% knitr::kable()
+
+# 151 strains in total
+
+strains_abundant_fields %<>% t() %>% as.data.frame() %>% dplyr::rename(isolates = V1) %>% dplyr::slice(-7) %>% mutate(location = rownames(.)) %>% mutate(isolates_total = "151")
+```
+
+Amount of strains mapping to the abundant microbiome members at various locations.
+```{r, warning = FALSE, error = FALSE, echo=FALSE, message=FALSE, fig.width=10, fig.height=7.5}
+mapped_strains_counts <- strains_abundant_fields %>% 
+  filter(!location %in% "Zurich_W22") %>% 
+  mutate(location = factor(location, levels = c("Greenhouse_B73", "Changins_B73", "Zurich_B73", "Ithaca_W22",  "Sheffield_W22"))) %>% 
+  mutate(isolates = as.numeric(isolates)) %>% 
+  mutate(isolates_total = as.numeric(isolates_total)) %>% 
+  mutate(isolates_not_mapped = isolates_total-isolates) %>% 
+  dplyr::select(location, isolates, isolates_not_mapped) %>% 
+  pivot_longer(cols = c(2,3)) %>% 
+  mutate(name = factor(name, levels = c("isolates_not_mapped", "isolates"))) %>% 
+  mutate(count = c("112", NA, "139", NA, "117", NA, "140", NA, "84", NA))
+
+mapped_strains_counts_plot <- mapped_strains_counts %>% 
+  ggplot(aes(x = location, y = value)) +
+  geom_bar(aes(fill = name), stat = "identity", show.legend = TRUE) +
+  geom_text(aes(label = count), y = 10)+
+  theme_classic() +
+  scale_y_continuous(expand = expansion(mult = c(0, NA)))+
+  theme(axis.text.x=element_text(angle = -90, hjust = 0, vjust = 0.5)) +
+  scale_x_discrete(labels= c("Changins pot", "Changins field", "Reckenholz field", "Aurora field", "Sheffield pot"))+
+  scale_fill_manual(values = c("grey", "khaki4"), labels = c("isolates not mapped", "isolates mapped"))+
+  labs(x = "", 
+       fill = "", 
+       y = "MRB isolates")
+
+mapped_strains_counts_plot
+
+# # ggsave(plot = mapped_strains_counts_plot,  filename = "mapped_strains_counts_plot.pdf", width = 10, height = 12, dpi = 300, scale = 1, units = "cm")
+# 
+# # ggsave(plot = mapped_strains_counts_plot, filename = "mapped_strains_counts_plot.svg", width = 10, height = 12, dpi = 300, scale = 1, units = "cm")
+
+```
+
+# Tree with mapping
+The tree is annotated with the quantitative abundance data from mapping greenhouse root microbiome dataset and qualitative information on the abundance in field microbiome datasets in the field (Changins, Zurich, Ithaca) and in the greenhouse (Sheffield). The outermost ring indicates the strains used in growth assays.
+```{r, warning = FALSE, error = FALSE, echo=FALSE, message=FALSE, fig.width=20, fig.height=15}
+p_ChFB_ASV <- gheatmap(tree_family_branch_line + new_scale_fill(),
+         tree_data %>% 
+         filter(Greenhouse_B73_feedback  > 0) %>% 
+         dplyr::select(Strain, Greenhouse_B73_feedback ) %>% 
+         dplyr::rename(WT_GH = Greenhouse_B73_feedback ) %>% 
+         distinct() %>% na.omit() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.3, 
+         width=.07,
+         colnames = FALSE)  +
+         scale_fill_gradient2(low = "linen", mid = "gold", high ="coral4", midpoint = 3, 
+                              na.value = "white", name="Abundance roots")
+
+p_Ch <- gheatmap(p_ChFB_ASV + new_scale_fill(),
+         tree_data %>% 
+         dplyr::select(Strain, Changins_B73_field_abundant) %>% 
+         dplyr::rename(Ch_B73 = Changins_B73_field_abundant) %>% 
+         distinct() %>% na.omit() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.42, 
+         width=.02,
+         colnames = FALSE)  +
+         scale_fill_manual(values = c("white", "grey40"), guide = "none")
+
+p_ZhB73 <- gheatmap(p_Ch + new_scale_fill(),
+         tree_data %>% 
+         dplyr::select(Strain, Zurich_B73_field_abundant) %>% 
+         dplyr::rename(Zh_B73 = Zurich_B73_field_abundant) %>% 
+         distinct() %>% na.omit() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.44, 
+         width=.02,
+         colnames = FALSE)  +
+         scale_fill_manual(values = c("white", "grey40"), guide = "none")
+
+p_AuW22 <- gheatmap(p_ZhB73 + new_scale_fill(),
+         tree_data %>% 
+         dplyr::select(Strain, Ithaca_W22_field_abundant ) %>% 
+         dplyr::rename(Au_W22 = Ithaca_W22_field_abundant ) %>% 
+         distinct() %>% na.omit() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.46, 
+         width=.02,
+         colnames = FALSE)  +
+        scale_fill_manual(values = c("white", "grey40"), guide = "none")
+
+p_ShW22 <- gheatmap(p_AuW22 + new_scale_fill(),
+         tree_data %>% 
+         dplyr::select(Strain, Sheffield_W22_field_abundant) %>% 
+         dplyr::rename(Sh_W22 = Sheffield_W22_field_abundant) %>% 
+         distinct() %>% na.omit() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.48, width=.02,
+         colnames = FALSE)  +
+         scale_fill_manual(values = c("white", "grey40"), guide = "none")
+
+p_tol <- gheatmap(p_ShW22 + new_scale_fill(),
+         tree_data %>% 
+         dplyr::select(Strain, tolerance_test) %>% 
+           filter(tolerance_test %in% "TRUE") %>% 
+         distinct() %>% 
+         as.data.frame() %>% column_to_rownames("Strain") ,
+         offset=0.55, width=.02,
+         colnames = FALSE)  +
+         scale_fill_manual(values ="black", na.value = "white", guide = "none")
+
+all_MRB_branch_line <- p_tol
+
+all_MRB_branch_line
+# 
+# ggplot2::ggsave(plot = all_MRB_branch_line,  filename = "all_MRB_branch_line.pdf", width = 60, height = 34, dpi = 300, scale = 1, units = "cm")
+# 
+# ggplot2::ggsave(plot = all_MRB_branch_line,  filename = "all_MRB_branch_line.svg", width = 60, height = 34, dpi = 300, scale = 1, units = "cm")
+```
+
+```{r}
+sessionInfo()
+```
+
+
