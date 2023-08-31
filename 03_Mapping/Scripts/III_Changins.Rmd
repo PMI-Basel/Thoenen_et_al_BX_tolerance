@@ -1,0 +1,1017 @@
+---
+title: "Mapping all MRB to OTU Hu et al. 2018"
+author: "Lisa Thönen"
+date: "6/16/2022"
+output: html_document
+toc: yes
+toc_float: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+Modified from "Hu et al. (2018), bacteria community analysis in R" published in Hu et al. 2018
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, error=FALSE, message=FALSE)
+```
+
+
+# Background
+
+We have sequenced the bacteria communities of a field experiment where WT and bx1 mutant plants were grown. From both plant lines, we have collected root and rhizosphere samples and profiled the bacteria communities using 16S rRNA sequencing. 
+
+The analysis of the bacteria communities in R requires the following input files:  
+- Experimental design: *Database_S1.txt* (save Database S1 as tab-delimited text file)  
+- OTU table: *both_exps_trimmed_qfiltered_renamed_l360_sort_derep_ab5_otu_chimerafree.tab*  
+- Taxonomy: *SILVA_tax_forR.txt*    
+
+
+```{r setting the environment, echo=F, message=F, warning=F}
+
+## libraries
+library(sciplot)
+library(plyr)
+library(pander)
+library(knitr)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(ggpubr)
+
+## functions
+source("../Input/functions/staxlab.R")
+source("../Input/functions/error.bar.R")
+
+```
+
+
+```{r design import, warning=F, echo=F, message=F}
+
+design <- read.table("../Input/III_Changins/Database_S1.txt", header=T)   # Database_S1.xlsx exported as tab-delimited text file
+rownames(design) <- design$sample_list_16S
+
+## experimental factor
+design$sample_type <- factor(design$sample_type, levels=c("Soil","Rhizo","Root"))
+design$plant_genotype <- factor(design$plant_genotype, levels=c("no","WT","bx1"))
+
+# levels(design$plant_genotype)
+
+## sample groups
+design$groups <- as.factor(paste(design$plant_genotype, design$sample_type, design$soil, sep="_"))
+design$groups <- factor(design$groups, levels=c("no_Soil_field", 
+                                                      "WT_Rhizo_field", "WT_Root_field",
+                                                      "bx1_Rhizo_field", "bx1_Root_field",
+                                                      "WT_Rhizo_BX+", "WT_Root_BX+",
+                                                      "WT_Rhizo_BX-", "WT_Root_BX-") )  
+levels(design$groups)[1] <- "field_soil"
+# table(design$groups)    # number of reps per sample group
+
+## defining colors for sample groups
+design$cols <- design$groups
+levels(design$cols) <- c("dimgrey", "gold", "gold2", "palegreen2", "palegreen3",
+                         "gold", "gold2", "palegreen2", "palegreen3")
+```
+
+
+```{r OTU import, warning=F, echo=F, message=F}
+
+bOTU_table <- "../Input/III_Changins/both_exps_trimmed_qfiltered_renamed_l360_sort_derep_ab5_otu_chimerafree.tab"
+all_bDAT <- read.table( bOTU_table, row.names=1, sep="\t", header=T, blank.lines.skip = FALSE)
+
+## sorting bOTU_table with sample order of design file
+# rownames(design)[ ! rownames(design) %in% colnames(all_bDAT)]
+bDAT <- all_bDAT[, rownames(design) ]
+
+## replacing "OTU" with "bOTU"
+rownames(bDAT) <- gsub("OTU","bOTU", rownames(bDAT) )
+
+### OTU table
+# bDAT[1:5, 1:5]
+
+```
+
+
+```{r tax import, warning=F, echo=F, message=F}
+
+bTAX <- read.table( "../Input/III_Changins/SILVA_tax_forR.txt" , row.names=1, sep="\t", blank.lines.skip = FALSE)
+rownames(bTAX) <- gsub("OTU","bOTU", rownames(bTAX) )
+
+## bTAX object
+colnames(bTAX) <- c("kingdom", "phylum", "class", "order", "family", "genus", "species", "conf")
+bTAX$kingdom <- gsub("D_0__","", bTAX$kingdom )
+
+bTAX$phylum <- gsub("D_1__","", bTAX$phylum )
+bTAX$class <- gsub("D_2__","", bTAX$class )
+bTAX$order <- gsub("D_3__","", bTAX$order )
+bTAX$family <- gsub("D_4__","", bTAX$family )
+bTAX$genus <- gsub("D_5__","", bTAX$genus )
+bTAX$species <- gsub("D_6__","", bTAX$species )
+
+bTAX[bTAX==""] <- "unassigned"
+bTAX[bTAX=="uncultured bacterium"] <- "uncultured"
+
+## define OTUs for removal (Eukaryotes, Cyanobacteria, Mitrochondria)
+# table(bTAX$kingdom)
+# unique(bTAX$kingdom)
+r1 <- rownames(bTAX[bTAX$kingdom=="Eukaryota",])
+# table(bTAX$phylum)
+# unique(bTAX$phylum)
+r2 <- rownames(bTAX[bTAX$phylum=="Cyanobacteria",])
+# table(bTAX$family)
+# unique(bTAX$family)
+r3 <- rownames(bTAX[bTAX$family=="mitochondria",])
+otus_to_remove <- unique(c(r1,r2,r3))
+
+## remove these from otu and tax table
+bDAT <- bDAT[-which(rownames(bDAT) %in% otus_to_remove),]
+bTAX <- bTAX[rownames(bDAT),]
+
+## add OTU_ID to taxonomy file
+bTAX$OTU_ID <- rownames(bTAX)
+
+### Taxonomy table
+# dim(bTAX)
+# bTAX[1:5, c(2,4,6)]
+
+```
+
+
+
+# Field experiment
+
+The field experiment consistet of a total of 44 samples representing 5 sample groups (soil samples and rhizosphere and root samples of both wildtype B73 or _bx1_ mutant plants). The number of replicates per sample group is given below. 
+
+```{r field subset, fig.height=4, fig.width=5, warning=F, echo=F}
+
+### design
+design_field <- droplevels(design[design$exp=="field",])
+
+# simplifying names of samples groups
+levels(design_field$groups) <- c("field_soil","WT_Rhizo",  "WT_Root", "bx1_Rhizo", "bx1_Root")
+
+# library(pander)
+design_field_summary <- table(design_field$groups)
+pander(design_field_summary)
+
+
+### data
+bDAT_field <- bDAT[, rownames(design_field) ]
+# range(colSums(bDAT_field))
+# dim(bDAT_field)
+
+## data normalization
+# total sum as %
+bDAT_field_norm <- t(t(bDAT_field)/colSums(bDAT_field)) * 100
+bDAT_field_norm <- bDAT_field_norm[rowSums(bDAT_field_norm) > 0,]  
+# dim(bDAT_field_norm)
+
+```
+
+\pagebreak
+
+
+
+\pagebreak
+
+## Identification of differentially abundant OTUs
+
+In a second step, we identified both in rhizosphere and root samples OTUs that differed in their relative abundance between wildtype B73 and mutant _bx1_(B73) plants. For this analysis we focussed on the abundant OTUs similar to Bai et al. (2016, Nature). We defined abundant OTUs as OTUs that have a minimal average abundance of 0.1% in the dataset. We utilized the r-package 'edgeR' for this analysis as particular strengths of this tool are the ability to estimate biological dispersion between replicate samples, and the performance of exact tests of significance that are suitable for small counts. We estimated dispersion by weighted likelihood empirical Bayes, modeled the OTU abundances as a function for the five sample groups and we contrasted the two genotypes, both for rhizosphere and root samples for the likelyhood ratio tests. P-values were adjusted according to Benjamini and Hochberg (1995).   
+
+
+***Root samples: bOTUs differing between B73 and _bx1_ plants***
+
+Below we list the direction and taxonomies of the differentially abundant bOTUs (between B73 and _bx1_ plants) in the root compartment. This information is comprised in the Database S4.    
+
+```{r field edgeR lrt root, fig.height=4, fig.width=5, warning=T, echo=F}
+
+### perform likelihood ratio tests
+field_root_edgeR_summary <- read.table("../Input/III_Changins/field_root_edgeR_summary.txt")
+pander(field_root_edgeR_summary)
+
+# Identification of differentially abundant OTUs
+field_root_lrt_OTUs <- read.table("../Input/III_Changins/field_root_lrt_OTUs.txt")
+field_root_lrt_OTUs <- field_root_lrt_OTUs$x
+pander(bTAX[field_root_lrt_OTUs, c(2,6)], justify='left')
+
+```
+
+\pagebreak
+
+## Root bacterial communities in WT and bx1 plants
+
+The 50 most abundant bOTUs in the root compartment are presented in the rank abundance plot below. The BX-dependent OTUs among the Top50 root bOTUs are marked with an asterisk. 
+
+
+```{r, fig.width=7, fig.height=5, message=F, echo=F}
+
+## Root samples
+Rootsamples_WT <- rownames(design_field)[which(design_field$plant_genotype=="WT" & design_field$sample_type=="Root")]
+Rootsamples_bx <- rownames(design_field)[which(design_field$plant_genotype=="bx1" & design_field$sample_type=="Root")]
+
+
+## calculation of means and SE
+# WT and sorting for rank abundance 
+bDAT_field_norm_root_WT_MEAN <- apply(bDAT_field_norm[, Rootsamples_WT ], 1, mean)
+bDAT_field_norm_root_WT_MEAN <- sort(bDAT_field_norm_root_WT_MEAN, decr=T)
+bDAT_field_norm_root_WT_SE <- apply(bDAT_field_norm[, Rootsamples_WT ], 1, se)[names(bDAT_field_norm_root_WT_MEAN)]
+# bx1
+bDAT_field_norm_root_bx_MEAN <- apply(bDAT_field_norm[, Rootsamples_bx ], 1, mean)[names(bDAT_field_norm_root_WT_MEAN)]
+bDAT_field_norm_root_bx_SE <- apply(bDAT_field_norm[, Rootsamples_bx ], 1, se)[names(bDAT_field_norm_root_WT_MEAN)]
+# summary
+bDAT_field_norm_root_MEANs <- cbind(bDAT_field_norm_root_WT_MEAN, bDAT_field_norm_root_bx_MEAN)
+colnames(bDAT_field_norm_root_MEANs) <- c("WT","bx1")
+bDAT_field_norm_root_SEs <- cbind(bDAT_field_norm_root_WT_SE, bDAT_field_norm_root_bx_SE)
+colnames(bDAT_field_norm_root_SEs) <- c("WT","bx1")
+
+
+## rank abundance plot
+# postscript("Field_root_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+p <- barplot(t(bDAT_field_norm_root_MEANs)[,1:50], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0.1,13), 
+             cex.names=.75, #main="Root samples", 
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_field_norm_root_MEANs)[1:50], srt=45, cex=.5)
+# legend
+legend(x="topright", legend=colnames(bDAT_field_norm_root_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_field_norm_root_MEANs)[,1:50], y1=t(bDAT_field_norm_root_MEANs)[,1:50] + t(bDAT_field_norm_root_SEs)[,1:50], angle=90, length=0.02, lwd=1)
+# stats
+stats_mw <- ifelse(rownames(bDAT_field_norm_root_MEANs) %in% field_root_lrt_OTUs, "*","")
+text(y=(apply(bDAT_field_norm_root_MEANs, 1, max)*1.75)[1:50], x=((p[1,] + p[2,])/2)[1:50], labels=stats_mw[1:50])
+# dev.off()
+
+```
+
+## Rhizosphere bacterial communities in WT and bx1 plants
+
+The 50 most abundant bOTUs in the root compartment are presented in the rank abundance plot below. The BX-dependent OTUs among the Top50 root bOTUs are marked with an asterisk. 
+
+
+```{r, fig.width=7, fig.height=5, message=F, echo=F}
+
+## Rhizo samples
+Rhizosamples_WT <- rownames(design_field)[which(design_field$plant_genotype=="WT" & design_field$sample_type=="Rhizo")]
+Rhizosamples_bx <- rownames(design_field)[which(design_field$plant_genotype=="bx1" & design_field$sample_type=="Rhizo")]
+
+
+## calculation of means and SE
+# WT and sorting for rank abundance 
+bDAT_field_norm_Rhizo_WT_MEAN <- apply(bDAT_field_norm[, Rhizosamples_WT ], 1, mean)
+bDAT_field_norm_Rhizo_WT_MEAN <- sort(bDAT_field_norm_Rhizo_WT_MEAN, decr=T)
+bDAT_field_norm_Rhizo_WT_SE <- apply(bDAT_field_norm[, Rhizosamples_WT ], 1, se)[names(bDAT_field_norm_Rhizo_WT_MEAN)]
+# bx1
+bDAT_field_norm_Rhizo_bx_MEAN <- apply(bDAT_field_norm[, Rhizosamples_bx ], 1, mean)[names(bDAT_field_norm_Rhizo_WT_MEAN)]
+bDAT_field_norm_Rhizo_bx_SE <- apply(bDAT_field_norm[, Rhizosamples_bx ], 1, se)[names(bDAT_field_norm_Rhizo_WT_MEAN)]
+# summary
+bDAT_field_norm_Rhizo_MEANs <- cbind(bDAT_field_norm_Rhizo_WT_MEAN, bDAT_field_norm_Rhizo_bx_MEAN)
+colnames(bDAT_field_norm_Rhizo_MEANs) <- c("WT","bx1")
+bDAT_field_norm_Rhizo_SEs <- cbind(bDAT_field_norm_Rhizo_WT_SE, bDAT_field_norm_Rhizo_bx_SE)
+colnames(bDAT_field_norm_Rhizo_SEs) <- c("WT","bx1")
+
+
+## rank abundance plot
+# postscript("Field_Rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+p <- barplot(t(bDAT_field_norm_Rhizo_MEANs)[,1:50], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0.1,13), 
+             cex.names=.75, #main="Rhizo samples", 
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_field_norm_Rhizo_MEANs)[1:50], srt=45, cex=.5)
+# legend
+legend(x="topright", legend=colnames(bDAT_field_norm_Rhizo_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_field_norm_Rhizo_MEANs)[,1:50], y1=t(bDAT_field_norm_Rhizo_MEANs)[,1:50] + t(bDAT_field_norm_Rhizo_SEs)[,1:50], angle=90, length=0.02, lwd=1)
+# stats
+# stats_mw <- ifelse(rownames(bDAT_field_norm_Rhizo_MEANs) %in% field_Rhizo_lrt_OTUs, "*","")
+# text(y=(apply(bDAT_field_norm_Rhizo_MEANs, 1, max)*1.75)[1:50], x=((p[1,] + p[2,])/2)[1:50], labels=stats_mw[1:50])
+# dev.off()
+
+```
+
+
+# Mapping bacterial isolate sequences to community sequences
+
+We map the 16S rRNA gene seqeunces of the isolated strains to the OTUs of the maize root microbiome using the custom R script created by Jan Wälchli, which maps the 16s sequences and creates a similarity table for all hits > 97 %.  
+
+```{r, echo=F}
+# ### uploading isolate-OTU assignments
+iso.tab <- read.table("../Input/III_Changins/hits97_Ch.csv", sep = ",", header=T, na.strings = "NA")
+colnames(iso.tab) <- c("hit", "OTU", "Strain", "ID")
+
+iso.tab %<>% dplyr::arrange(desc(Strain))
+
+iso.tab$Strain <- gsub("_1492r", "", iso.tab$Strain)
+iso.tab$Strain <- gsub("_27f", "", iso.tab$Strain)
+
+# count mapped strains
+sequences_mapped <- iso.tab$Strain %>% unique()
+iso.tab$Strain %>% unique() %>% length()
+```
+
+```{r}
+#read fasta file
+sequences_tree <- seqinr::read.fasta(file = "../Input/III_Changins/220623_all_MRB_isolated_maizeB73_sequences_noprimername_revcom.fas",
+  seqtype = c("DNA"), as.string = FALSE, forceDNAtolower = FALSE,
+  set.attributes = TRUE, legacy.mode = TRUE, seqonly = FALSE, strip.desc = FALSE,
+  whole.header = FALSE,
+  bfa = FALSE, sizeof.longlong = .Machine$sizeof.longlong,
+  endian = .Platform$endian, apply.mask = TRUE)
+
+all_sequences <- names(sequences_tree)
+
+names(sequences_tree) %>% length()
+
+not_mapped <- setdiff(all_sequences, sequences_mapped)
+not_mapped
+```
+
+```{r}
+similarities <- read.csv("../Input/III_Changins/similarities.csv")
+
+similarities_not_mapped <- similarities %>% dplyr::select(X, not_mapped) 
+
+# similarities %>% dplyr::select(X, not_mapped) > 0.95
+
+# similarities_not_mapped[similarities_not_mapped > 0.95,]
+
+# similarities_not_mapped %>% dplyr::select(not_mapped) %>% filter_all(any_vars(.> 0.92))
+
+similarities_not_mapped %>% summarise_if(is.numeric, max)
+similarities_not_mapped %>% dplyr::select(-X) %>% top_n(5)
+
+rownames(similarities_not_mapped) <-  similarities_not_mapped$X
+similarities_not_mapped_noX <- similarities_not_mapped %>% dplyr::select(-X)
+
+hits_not_mapped <- apply(similarities_not_mapped_noX, 2, function(x) {c(rownames(similarities_not_mapped_noX)[which(x==max(x))][1], max(x))})
+hits_not_mapped <- t(as.data.frame(hits_not_mapped)) #convert to data.frame
+hits_not_mapped[,2] <- round(as.numeric(hits_not_mapped[,2]), 3) * 100 #percent identical
+colnames(hits_not_mapped) <- c("OTU", "similarity")
+hits_not_mapped %<>% as.data.frame()
+hits_not_mapped$Strain <- rownames(hits_not_mapped)
+# hits_not_mapped_bOTU <- hits_not_mapped %>% mutate(bOTU = "bOTU") %>% mutate(OTU = interaction(bOTU, OTU, sep =""))
+hits_not_mapped$OTU <- gsub("OTU", "bOTU", hits_not_mapped$OTU)
+
+```
+
+```{r, echo=F}
+# rem
+iso.tab %<>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA))
+
+iso.tab.per <- iso.tab %>% dplyr::select(-hit) %>% unique()
+write.csv(iso.tab.per, "../Input/III_Changins/hits97_bad_seq_removed.csv")
+
+iso.tab %<>% dplyr::select(OTU, Strain)
+iso.tab$OTU <- gsub("OTU","bOTU", iso.tab$OTU )
+iso_names <- names(table(iso.tab$OTU))[-1]
+
+iso_names_not_mapped <- names(table(hits_not_mapped$OTU))[-1]
+
+# add also additional strains (mapping 92% similarity, Acinetobacter, Sphingobium, Stenotrophomonas)
+iso.tab <- rbind(iso.tab, hits_not_mapped %>% dplyr::select(OTU, Strain))
+
+
+iso_names <- c(iso_names, iso_names_not_mapped)
+
+head(iso.tab)
+
+
+```
+
+### selection of best mapping OTUs
+criteria: 
+1. Similarity
+2. Abundance
+
+```{r}
+selected_OTU <- c("OTU104", "OTU122","OTU143","OTU14","OTU153","OTU78","OTU5","OTU243","OTU1240","OTU717","OTU331","OTU1009","OTU118","OTU168","OTU3064","OTU1707","OTU15","OTU62","OTU223", "OTU629", "OTU12", "OTU158", "OTU564")
+
+selected_OTU <- gsub("OTU", "bOTU", selected_OTU)
+
+selected_OTU <- c(selected_OTU, iso_names_not_mapped)
+```
+
+
+
+## Plotting the OTUs to which the bacterial isolates map in the microbiome data  
+### Root
+```{r, echo=F}
+
+# strain_col <- rep("black", length(rownames(bDAT_field_norm_root_MEANs)))
+# names(strain_col) <- rownames(bDAT_field_norm_root_MEANs)
+# 
+# strain_col <- "magenta"
+
+strain_col <- rep("black", length(rownames(bDAT_field_norm_root_MEANs)))
+names(strain_col) <- rownames(bDAT_field_norm_root_MEANs)
+strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","black")
+
+
+
+## rank abundance plot
+# postscript("Field_root_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+p <- barplot(t(bDAT_field_norm_root_MEANs)[,1:50], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0.1,13), 
+             cex.names=.75, main="Root", 
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_field_norm_root_MEANs)[1:50], col=strain_col, srt=45, cex=.5)
+# legend
+legend(x="topright", legend=colnames(bDAT_field_norm_root_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_field_norm_root_MEANs)[,1:50], y1=t(bDAT_field_norm_root_MEANs)[,1:50] + t(bDAT_field_norm_root_SEs)[,1:50], angle=90, length=0.02, lwd=1)
+# stats
+stats_mw <- ifelse(rownames(bDAT_field_norm_root_MEANs) %in% field_root_lrt_OTUs, "*","")
+text(y=(apply(bDAT_field_norm_root_MEANs, 1, max)*1.75)[1:50], x=((p[1,] + p[2,])/2)[1:50], labels=stats_mw[1:50])
+# dev.off()
+
+```
+
+### Rhizosphere
+```{r, echo=F}
+
+# strain_col <- rep("black", length(rownames(bDAT_field_norm_Rhizo_MEANs)))
+# names(strain_col) <- rownames(bDAT_field_norm_Rhizo_MEANs)
+# 
+# strain_col <- "magenta"
+
+strain_col <- rep("black", length(rownames(bDAT_field_norm_Rhizo_MEANs)))
+names(strain_col) <- rownames(bDAT_field_norm_Rhizo_MEANs)
+strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","black")
+
+
+
+## rank abundance plot
+# postscript("Field_Rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+p <- barplot(t(bDAT_field_norm_Rhizo_MEANs)[,1:50], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0.1,13), 
+             cex.names=.75, main="Rhizosphere", 
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_field_norm_Rhizo_MEANs)[1:50], col=strain_col, srt=45, cex=.5)
+# legend
+legend(x="topright", legend=colnames(bDAT_field_norm_Rhizo_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_field_norm_Rhizo_MEANs)[,1:50], y1=t(bDAT_field_norm_Rhizo_MEANs)[,1:50] + t(bDAT_field_norm_Rhizo_SEs)[,1:50], angle=90, length=0.02, lwd=1)
+# stats
+# stats_mw <- ifelse(rownames(bDAT_field_norm_Rhizo_MEANs) %in% field_Rhizo_lrt_OTUs, "*","")
+# text(y=(apply(bDAT_field_norm_Rhizo_MEANs, 1, max)*1.75)[1:50], x=((p[1,] + p[2,])/2)[1:50], labels=stats_mw[1:50])
+# dev.off()
+
+```
+
+# Abundance and rank of isolates in the microbiome
+root
+```{r, include =FALSE}
+bDAT_field_norm_root_MEANs %<>% as.data.frame()
+bDAT_field_norm_root_MEANs$OTU <- rownames(bDAT_field_norm_root_MEANs)
+
+# Abundance
+bDAT_field_norm_root_MEANs %<>% dplyr::rename(Abundance_WT = WT, Abundance_bx1 = bx1)
+
+# WT-bx1 dif
+bDAT_field_norm_root_MEANs %<>% mutate(WT_bx_dif = Abundance_WT - Abundance_bx1)
+
+# Rank
+bDAT_field_norm_root_MEANs %>% dplyr::arrange(desc(Abundance_WT)) 
+bDAT_field_norm_root_MEANs$Rank_WT <- c(1:nrow(bDAT_field_norm_root_MEANs))
+
+bDAT_field_norm_root_MEANs %>% dplyr::arrange(desc(Abundance_bx1)) 
+bDAT_field_norm_root_MEANs$Rank_bx1 <- c(1:nrow(bDAT_field_norm_root_MEANs))
+
+# Rank WT-bx1 dif
+bDAT_field_norm_root_MEANs %<>% mutate(Rank_WT_bx1_dif = Rank_WT - Rank_bx1)
+```
+
+rhizo
+```{r, include =FALSE}
+bDAT_field_norm_Rhizo_MEANs %<>% as.data.frame()
+bDAT_field_norm_Rhizo_MEANs$OTU <- rownames(bDAT_field_norm_Rhizo_MEANs)
+
+# Abundance
+bDAT_field_norm_Rhizo_MEANs %<>% dplyr::rename(Abundance_WT = WT, Abundance_bx1 = bx1)
+
+# WT-bx1 dif
+bDAT_field_norm_Rhizo_MEANs %<>% mutate(WT_bx_dif = Abundance_WT - Abundance_bx1)
+
+# Rank
+bDAT_field_norm_Rhizo_MEANs %>% dplyr::arrange(desc(Abundance_WT)) 
+bDAT_field_norm_Rhizo_MEANs$Rank_WT <- c(1:nrow(bDAT_field_norm_Rhizo_MEANs))
+
+bDAT_field_norm_Rhizo_MEANs %>% dplyr::arrange(desc(Abundance_bx1)) 
+bDAT_field_norm_Rhizo_MEANs$Rank_bx1 <- c(1:nrow(bDAT_field_norm_Rhizo_MEANs))
+
+# Rank WT-bx1 dif
+bDAT_field_norm_Rhizo_MEANs %<>% mutate(Rank_WT_bx1_dif = Rank_WT - Rank_bx1)
+
+bDAT_field_norm_root_MEANs %<>% mutate(compartment = "root")
+bDAT_field_norm_Rhizo_MEANs %<>% mutate(compartment = "rhizo")
+
+field_abundance_rank <- rbind(bDAT_field_norm_root_MEANs, bDAT_field_norm_Rhizo_MEANs)
+
+# join to isolates
+iso_abundance_rank <- left_join(iso.tab, field_abundance_rank, by = "OTU")
+iso_abundance_rank <- left_join(iso_abundance_rank, bTAX, by = c("OTU" = "OTU_ID"))
+
+# format dataset to plot with ggplot
+```
+
+```{r}
+# iso_abundance_single_data %>% dplyr::arrange(family) %>% dplyr::select(Strain, family) %>% unique()
+  
+iso_abundance_rank %<>% mutate(family = case_when(Strain %in% c("LMC1", "LMK1") ~ "Erwiniaceae", !Strain %in% c("LMC1", "LMK1") ~ family))
+
+iso_abundance_rank %<>% mutate(family = case_when(Strain == "LAC11" ~ "Moraxellaceae", Strain != "LAC11" ~ family))
+
+```
+
+```{r, include =FALSE}
+# scales::show_col(calc_pal()(12))
+# iso_abundance_rank %<>% na.omit()
+
+iso_abundance_rank$cols_family <- as.character(iso_abundance_rank$family)
+
+iso_abundance_rank[ iso_abundance_rank$family=="Moraxellaceae", ]$cols_family <- "#a73e62"
+iso_abundance_rank[ iso_abundance_rank$family=="Bacillaceae" , ]$cols_family <- "#004586"
+iso_abundance_rank[ iso_abundance_rank$family=="Pseudomonadaceae" , ]$cols_family <- "#4b1f6f"
+iso_abundance_rank[ iso_abundance_rank$family=="Paenibacillaceae" , ]$cols_family <- "#8f9ec9"
+iso_abundance_rank[ iso_abundance_rank$family=="Rhizobiaceae", ]$cols_family <- "#ff950e"
+iso_abundance_rank[ iso_abundance_rank$family=="Sphingomonadaceae", ]$cols_family <- "#c5000b"
+iso_abundance_rank[ iso_abundance_rank$family=="Xanthomonadaceae", ]$cols_family <- "#0084d1"
+iso_abundance_rank[ iso_abundance_rank$family=="Microbacteriaceae" , ]$cols_family <- "#7e0021"
+iso_abundance_rank[ iso_abundance_rank$family=="Micrococcaceae" , ]$cols_family <- "#83caff"
+iso_abundance_rank[ iso_abundance_rank$family=="Chitinophagaceae" , ]$cols_family <- "#ff420e"
+iso_abundance_rank[ iso_abundance_rank$family=="Enterobacteriaceae" , ]$cols_family <- "#ffd320"
+iso_abundance_rank[ iso_abundance_rank$family=="Erwiniaceae" , ]$cols_family <- "#579d1c"
+iso_abundance_rank[ iso_abundance_rank$family=="Nocardioidaceae" , ]$cols_family <- "#314004"
+iso_abundance_rank[ iso_abundance_rank$family=="Oxalobacteraceae" , ]$cols_family <- "#aecf00"
+iso_abundance_rank[ iso_abundance_rank$family=="Streptomycetaceae" , ]$cols_family <- "#8b995a"
+
+# iso_abundance_rank[ iso_abundance_rank$family=="Flavobacteriaceae" , ]$cols_family <- "#F0D5B4"
+# iso_abundance_rank[ iso_abundance_rank$family=="Planococcaceae", ]$cols_family <- "#7F5757"
+iso_abundance_rank[ iso_abundance_rank$family=="Chitinophagaceae", ]$cols_family <- "#6D4600"
+iso_abundance_rank[ iso_abundance_rank$family=="Sphingobacteriaceae", ]$cols_family <- "#c75536"
+# iso_abundance_rank[ iso_abundance_rank$family=="Deinococcaceae", ]$cols_family <- "#031e33"
+
+# iso_abundance_rank[ iso_abundance_rank$family==NA, ]$cols_family <- "dimgrey"
+# table(iso_abundance_rank$cols_family)
+
+## collapsed color vector for each level
+temp <- data.frame(iso_abundance_rank$family, iso_abundance_rank$cols_family)
+temp <- plyr::ddply(temp, .variables="iso_abundance_rank.cols_family", .fun=unique)   #library(plyr)
+iso_abundance_rank_level_cols_family <- as.character(temp[,2])
+names(iso_abundance_rank_level_cols_family) <- temp[,1]
+```
+
+```{r}
+rank_mapped_OTUs <- readr::read_rds("../Input/III_Changins/iso_abundance_rank.rds") %>% filter(compartment %in% "root") %>%  dplyr::select(Strain, OTU, family, Rank_WT) %>% unique() %>% dplyr::arrange(Rank_WT)
+
+dir.create("../Output/III_Changins", recursive = T, showWarnings = F)
+write.csv(rank_mapped_OTUs, "../Output/III_Changins/rank_mapped_OTUs_root.csv")
+```
+
+
+# Plot abundance isolates on WT and bx1 roots
+```{r}
+iso_abundance_rank %>% 
+  mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
+  dplyr::select(-Strain) %>%
+  unique() %>% 
+  ggplot(aes(x = reorder(OTU, Abundance_WT), y = WT_bx_dif)) +
+  geom_bar(aes(fill = family), stat = "summary") +
+  scale_fill_manual(values = iso_abundance_rank_level_cols_family) +
+  geom_text(aes(label=Rank_WT), y = -4)+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0))+
+  coord_flip()+
+  facet_wrap(~compartment)+
+  labs(y = "WT-bx1 difference abundance [%]", x = "") 
+```
+
+```{r}
+root_WT_abundance <- bDAT_field_norm[, Rootsamples_WT ]
+root_bx_abundance <- bDAT_field_norm[, Rootsamples_bx ]
+
+root_WT_abundance %<>% as.data.frame()
+colnames(root_WT_abundance) <- c(1:10)
+root_WT_abundance$OTU <- rownames(root_WT_abundance)
+# root_WT_abundance$genotype <- "WT"
+root_WT_abundance %<>% pivot_longer(cols = 1:10) %>% dplyr::rename(replicate = name, Abundance_WT = value)
+root_WT_abundance %<>% mutate(OTU_replicate = interaction(OTU, replicate))
+
+root_WT_abundance %<>% mutate(compartment = "root")
+
+root_bx_abundance %<>% as.data.frame()
+colnames(root_bx_abundance) <- c(1:7)
+root_bx_abundance$OTU <- rownames(root_bx_abundance)
+# root_bx_abundance$genotype <- "bx1"
+root_bx_abundance %<>% pivot_longer(cols = 1:7) %>% dplyr::rename(replicate = name, Abundance_bx1 = value)
+root_bx_abundance %<>% mutate(OTU_replicate = interaction(OTU, replicate))
+
+root_bx_abundance %<>% mutate(compartment = "root")
+```
+
+```{r}
+Rhizo_WT_abundance <- bDAT_field_norm[, Rhizosamples_WT ]
+Rhizo_bx_abundance <- bDAT_field_norm[, Rhizosamples_bx ]
+
+Rhizo_WT_abundance %<>% as.data.frame()
+colnames(Rhizo_WT_abundance) <- c(1:10)
+Rhizo_WT_abundance$OTU <- rownames(Rhizo_WT_abundance)
+# Rhizo_WT_abundance$genotype <- "WT"
+Rhizo_WT_abundance %<>% pivot_longer(cols = 1:10) %>% dplyr::rename(replicate = name, Abundance_WT = value)
+Rhizo_WT_abundance %<>% mutate(OTU_replicate = interaction(OTU, replicate))
+
+Rhizo_WT_abundance %<>% mutate(compartment = "rhizo")
+
+Rhizo_bx_abundance %<>% as.data.frame()
+colnames(Rhizo_bx_abundance) <- c(1:7)
+Rhizo_bx_abundance$OTU <- rownames(Rhizo_bx_abundance)
+# Rhizo_bx_abundance$genotype <- "bx1"
+Rhizo_bx_abundance %<>% pivot_longer(cols = 1:7) %>% dplyr::rename(replicate = name, Abundance_bx1 = value)
+Rhizo_bx_abundance %<>% mutate(OTU_replicate = interaction(OTU, replicate))
+
+Rhizo_bx_abundance %<>% mutate(compartment = "rhizo")
+```
+
+
+```{r}
+iso_abundance_single_data_long <- rbind(root_WT_abundance %>% dplyr::rename(Abundance = Abundance_WT) %>% mutate(genotype = "WT") %>% mutate(compartment = "root"),
+                                        root_bx_abundance %>% dplyr::rename(Abundance = Abundance_bx1) %>% mutate(genotype = "bx1") %>% mutate(compartment = "root"), 
+                                        Rhizo_WT_abundance %>% dplyr::rename(Abundance = Abundance_WT) %>% mutate(genotype = "WT") %>% mutate(compartment = "rhizo"), 
+                                        Rhizo_bx_abundance %>% dplyr::rename(Abundance = Abundance_bx1) %>% mutate(genotype = "bx1") %>% mutate(compartment = "rhizo")) %>% 
+                                        dplyr::select(-OTU_replicate)
+
+library(rstatix)
+
+iso_abundance_single_data_long_stats <- iso_abundance_single_data_long %>% group_by(OTU, compartment) %>%
+  do(tidy(t.test(Abundance~genotype, data=.))) %>% 
+  add_significance("p.value") %>% 
+  dplyr::select(OTU, p.value, p.value.signif) 
+```
+
+
+stats t.test with
+iso_abundance_single_data_long
+
+```{r}
+iso_abundance_root_single_data <- left_join(root_WT_abundance %>% dplyr::select(-OTU, -replicate, -compartment), root_bx_abundance %>% dplyr::select(-OTU, -replicate, -compartment), by = "OTU_replicate") %>%
+  separate(OTU_replicate, c("OTU", "replicate")) %>%
+  mutate(WT_bx_dif = Abundance_WT-Abundance_bx1)
+
+iso_abundance_Rhizo_single_data <- left_join(Rhizo_WT_abundance %>% dplyr::select(-OTU, -replicate, -compartment), Rhizo_bx_abundance %>% dplyr::select(-OTU, -replicate, -compartment), by = "OTU_replicate") %>%
+  separate(OTU_replicate, c("OTU", "replicate")) %>%
+  mutate(WT_bx_dif = Abundance_WT-Abundance_bx1)
+
+iso_abundance_single_data <- rbind(iso_abundance_root_single_data  %>% mutate(compartment = "root"), iso_abundance_Rhizo_single_data %>% mutate(compartment = "rhizo"))
+
+iso_abundance_single_data <- left_join(iso.tab, iso_abundance_single_data, by = "OTU")
+iso_abundance_single_data <- left_join(iso_abundance_single_data, bTAX, by = c("OTU" = "OTU_ID"))
+iso_abundance_single_data <- left_join(iso_abundance_single_data, iso_abundance_rank %>% dplyr::select(OTU, Rank_WT), by = "OTU") %>% unique()
+iso_abundance_single_data <- left_join(iso_abundance_single_data %>% as.data.frame() %>% mutate(OTU_compartment = interaction(OTU, compartment)), 
+                                       iso_abundance_single_data_long_stats %>% as.data.frame() %>% mutate(OTU_compartment = interaction(OTU, compartment)) %>% 
+                                         dplyr::select(OTU_compartment, p.value, p.value.signif), by = "OTU_compartment")
+
+iso_abundance_single_data %<>% mutate(Abundance_WT = replace_na(Abundance_WT, 0), Abundance_bx1 = replace_na(Abundance_bx1, 0)) %>% 
+  mutate(BXcol = Abundance_WT/Abundance_bx1, log2FC = log2(Abundance_WT)-log2(Abundance_bx1), WTbx1dif_zscore = Abundance_WT - Abundance_WT / sd(Abundance_WT))
+
+```
+
+```{r}
+OTU_sig <- iso_abundance_single_data %>% 
+  dplyr::select(p.value.signif, OTU) %>% unique()
+```
+
+
+```{r}
+# iso_abundance_single_data %>% dplyr::arrange(family) %>% dplyr::select(Strain, family) %>% unique()
+  
+iso_abundance_single_data %<>% mutate(family = case_when(Strain %in% c("LMC1", "LMK1") ~ "Erwiniaceae", !Strain %in% c("LMC1", "LMK1") ~ family))
+
+iso_abundance_single_data %<>% mutate(family = case_when(Strain == "LAC11" ~ "Moraxellaceae", Strain != "LAC11" ~ family))
+
+```
+
+```{r, include =FALSE}
+# scales::show_col(calc_pal()(12))
+# iso_abundance_rank %<>% na.omit()
+
+iso_abundance_single_data$cols_family <- as.character(iso_abundance_single_data$family)
+
+iso_abundance_single_data[ iso_abundance_single_data$family=="Moraxellaceae", ]$cols_family <- "#a73e62"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Bacillaceae" , ]$cols_family <- "#004586"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Pseudomonadaceae" , ]$cols_family <- "#4b1f6f"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Paenibacillaceae" , ]$cols_family <- "#8f9ec9"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Rhizobiaceae", ]$cols_family <- "#ff950e"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Sphingomonadaceae", ]$cols_family <- "#c5000b"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Xanthomonadaceae", ]$cols_family <- "#0084d1"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Microbacteriaceae" , ]$cols_family <- "#7e0021"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Micrococcaceae" , ]$cols_family <- "#83caff"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Chitinophagaceae" , ]$cols_family <- "#ff420e"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Enterobacteriaceae" , ]$cols_family <- "#ffd320"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Erwiniaceae" , ]$cols_family <- "#579d1c"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Nocardioidaceae" , ]$cols_family <- "#314004"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Oxalobacteraceae" , ]$cols_family <- "#aecf00"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Streptomycetaceae" , ]$cols_family <- "#8b995a"
+
+# iso_abundance_single_data[ iso_abundance_single_data$family=="Flavobacteriaceae" , ]$cols_family <- "#F0D5B4"
+# iso_abundance_single_data[ iso_abundance_single_data$family=="Planococcaceae", ]$cols_family <- "#7F5757"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Chitinophagaceae", ]$cols_family <- "#6D4600"
+iso_abundance_single_data[ iso_abundance_single_data$family=="Sphingobacteriaceae", ]$cols_family <- "#c75536"
+# iso_abundance_single_data[ iso_abundance_single_data$family=="Deinococcaceae", ]$cols_family <- "#031e33"
+
+# iso_abundance_single_data[ iso_abundance_single_data$family==NA, ]$cols_family <- "dimgrey"
+# table(iso_abundance_single_data$cols_family)
+
+## collapsed color vector for each level
+temp <- data.frame(iso_abundance_single_data$family, iso_abundance_single_data$cols_family)
+temp <- plyr::ddply(temp, .variables="iso_abundance_single_data.cols_family", .fun=unique)   #library(plyr)
+iso_abundance_single_data_level_cols_family <- as.character(temp[,2])
+names(iso_abundance_single_data_level_cols_family) <- temp[,1]
+```
+
+# Plot abundance isolates single value
+
+```{r}
+iso_abundance_single_data %>% 
+  mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
+  filter(compartment %in% c("root", "rhizo")) %>% 
+  # filter(!OTU %in% c("bOTU5", "bOTU2454")) %>% 
+  filter(!WT_bx_dif %in% c(-Inf, Inf, NA, NaN)) %>% 
+  filter(OTU %in% selected_OTU) %>% 
+  mutate(p.value.signif = gsub("ns", "", p.value.signif)) %>% 
+  mutate(p.value.signif = gsub("?", "", p.value.signif)) %>% 
+  dplyr::select(-Strain) %>% 
+  unique() %>% 
+  ggplot(aes(x = reorder(OTU, Abundance_WT), y = WT_bx_dif)) +
+  geom_bar(aes(fill = family), stat = "summary") +
+  geom_errorbar(width = 0.3, stat = "summary")+
+  # geom_boxplot(aes(color = family)) +
+  geom_jitter(aes(color = family), width = 0.1)+
+  scale_fill_manual(values = iso_abundance_single_data_level_cols_family) +
+  scale_color_manual(values = iso_abundance_single_data_level_cols_family) +
+  # geom_text(aes(label=Rank_WT), y = -10.2, size = 3)+
+  geom_text(aes(label=p.value.signif), y = -8, colour = "grey50", size = 5)+
+  ylim(-10.5, 15)+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0))+
+  coord_flip()+
+  facet_wrap(~compartment)+
+  labs(y = "WT-bx1 difference abundance [%]", x = "") 
+```
+
+```{r}
+iso_abundance_single_data %>% 
+  mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
+  filter(compartment %in% c("root", "rhizo")) %>% 
+  # filter(!OTU %in% c("bOTU5", "bOTU2454")) %>% 
+  filter(!log2FC %in% c(-Inf, Inf, NA, NaN)) %>% 
+  filter(OTU %in% selected_OTU) %>% 
+  mutate(p.value.signif = gsub("ns", "", p.value.signif)) %>% 
+  mutate(p.value.signif = gsub("?", "", p.value.signif)) %>% 
+  dplyr::select(-Strain) %>% 
+  unique() %>% 
+  ggplot(aes(x = reorder(OTU, Abundance_WT), y = log2FC)) +
+  geom_bar(aes(fill = family), stat = "summary") +
+  geom_errorbar(width = 0.3, stat = "summary")+
+  # geom_boxplot(aes(color = family)) +
+  geom_jitter(aes(color = family), width = 0.1)+
+  scale_fill_manual(values = iso_abundance_single_data_level_cols_family) +
+  scale_color_manual(values = iso_abundance_single_data_level_cols_family) +
+  # geom_text(aes(label=Rank_WT), y = -10.2, size = 3)+
+  geom_text(aes(label=p.value.signif), y = -8, colour = "grey50", size = 5)+
+  ylim(-10.5, 15)+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0))+
+  coord_flip()+
+  facet_wrap(~compartment)+
+  labs(y = "WT bx1 log2fold change", x = "") 
+```
+
+# Plotting single OTUs on WT and bx1 roots and rhizosphere
+```{r}
+iso_abundance_single_data_genotype <- iso_abundance_single_data %>% dplyr::select(OTU, Strain, Abundance_WT, Abundance_bx1, family, compartment, replicate) %>% pivot_longer(
+   cols = starts_with("Abundance"),
+   names_to = "genotype",
+   values_to = "Abundance",
+   values_drop_na = TRUE) %>% mutate(genotype = gsub("Abundance_bx1", "bx1", genotype)) %>% 
+  mutate(genotype = gsub("Abundance_WT", "WT", genotype)) %>% filter(!compartment %in% NA) %>% mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% mutate(genotype = factor(genotype, levels = c("WT", "bx1"))) %>% mutate(compartment_genotype = interaction(compartment, genotype)) %>% mutate(compartment_genotype = factor(compartment_genotype, levels = c("root.WT", "root.bx1", "rhizo.WT", "rhizo.bx1")))
+```
+
+```{r}
+genotype_stats <- iso_abundance_single_data_genotype %>% 
+  dplyr::select(-Strain) %>% 
+  unique() %>% 
+  filter(OTU %in% selected_OTU) %>% 
+ group_by(OTU, compartment, family) %>%
+  do(tidy(t.test(Abundance~genotype, data=.))) %>% 
+  add_significance("p.value") %>% 
+  dplyr::select(OTU, family, p.value, p.value.signif) 
+
+genotype_stats %>% filter(!p.value.signif %in% "ns") %>% pander()
+
+write.csv(genotype_stats, "../Output/III_Changins/genotype_stats.csv")
+```
+
+```{r}
+compartment_stats <- iso_abundance_single_data_genotype %>% 
+  dplyr::select(-Strain) %>% 
+  unique() %>% 
+filter(OTU %in% selected_OTU) %>%  
+ group_by(OTU, genotype, family) %>%
+  do(tidy(t.test(Abundance~compartment, data=.))) %>% 
+  add_significance("p.value") %>% 
+  dplyr::select(OTU, family, p.value, p.value.signif) 
+
+compartment_stats %>% filter(!p.value.signif %in% "ns") %>% pander()
+
+write.csv(compartment_stats, "../Output/III_Changins/compartment_stats.csv")
+```
+
+```{r}
+iso_abundance_single_data_genotype %>% 
+  filter(OTU %in% selected_OTU) %>% 
+  dplyr::select(-Strain) %>% 
+  distinct() %>% 
+  ggplot(aes(x = compartment_genotype, y = Abundance)) + 
+  geom_bar(aes(fill = genotype), stat = "summary") + 
+  geom_jitter(width = 0.1)+
+  facet_wrap(~interaction(OTU, family), scales = "free_y") +
+  theme_bw() +
+  scale_fill_manual(values = c("gold", "forestgreen"))+
+  labs(x="")
+```
+
+```{r}
+iso_abundance_single_data_genotype %>% 
+  filter(compartment %in% "root") %>% 
+  filter(OTU %in% selected_OTU) %>% 
+  dplyr::select(-Strain) %>% 
+  distinct() %>% 
+  ggplot(aes(x = genotype, y = Abundance)) + 
+  geom_bar(aes(fill = genotype), stat = "summary") + 
+  geom_jitter(width = 0.1)+
+  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "WT", label.y.npc = 0.8) +
+  facet_wrap(~interaction(OTU, family), scales = "free_y") +
+  theme_bw() +
+  scale_fill_manual(values = c("gold", "forestgreen"))+
+  labs(x="")
+```
+
+```{r}
+iso_abundance_single_data_genotype %>% 
+  filter(compartment %in% "rhizo") %>% 
+  filter(OTU %in% selected_OTU) %>% 
+  dplyr::select(-Strain) %>% 
+  distinct() %>% 
+  ggplot(aes(x = genotype, y = Abundance)) + 
+  geom_bar(aes(fill = genotype), stat = "summary") + 
+  geom_jitter(width = 0.1)+
+  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "WT", label.y.npc = 0.8) +
+  facet_wrap(~interaction(OTU, family), scales = "free_y") +
+  theme_bw() +
+  scale_fill_manual(values = c("gold", "forestgreen"))+
+  labs(x="")
+```
+
+
+
+
+# Export
+```{r}
+#write_rds(iso_abundance_rank, "../Output/III_Changins/iso_abundance_rank.rds")
+#write_rds(iso_abundance_single_data, "../Output/III_Changins/iso_abundance_single_data.rds")
+```
+
+```{r}
+iso_abundance_rank_selected <- iso_abundance_rank %>% filter(OTU %in% selected_OTU)
+iso_abundance_single_data_selected <- iso_abundance_single_data %>% filter(OTU %in% selected_OTU)
+
+#write_rds(iso_abundance_rank_selected, "../Output/III_Changins/iso_abundance_rank_selected_field.rds")
+#write_rds(iso_abundance_single_data_selected, "../Output/III_Changins/iso_abundance_single_data_selected_field.rds")
+```
+
+# Explore phyla and family distribution in the dataset
+
+```{r}
+field_abundance_rank_tax <- left_join(field_abundance_rank, bTAX, by = c("OTU" ="OTU_ID"))
+
+abundance_single_data_tax <- left_join(iso_abundance_single_data_long, bTAX, by = c("OTU" ="OTU_ID"))
+```
+
+```{r}
+field_abundance_rank_tax_selectedOTU <- field_abundance_rank_tax %>% filter(OTU %in% selected_OTU) 
+selected_OTU_families <- field_abundance_rank_tax_selectedOTU$family
+```
+
+
+```{r, include =FALSE}
+# scales::show_col(calc_pal()(12))
+# field_abundance_rank_tax %<>% na.omit()
+
+field_abundance_rank_tax$cols_family <- as.character(field_abundance_rank_tax$family)
+
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Moraxellaceae", ]$cols_family <- "#a73e62"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Bacillaceae" , ]$cols_family <- "#004586"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Pseudomonadaceae" , ]$cols_family <- "#4b1f6f"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Paenibacillaceae" , ]$cols_family <- "#8f9ec9"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Rhizobiaceae", ]$cols_family <- "#ff950e"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Sphingomonadaceae", ]$cols_family <- "#c5000b"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Xanthomonadaceae", ]$cols_family <- "#0084d1"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Microbacteriaceae" , ]$cols_family <- "#7e0021"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Micrococcaceae" , ]$cols_family <- "#83caff"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Chitinophagaceae" , ]$cols_family <- "#ff420e"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Enterobacteriaceae" , ]$cols_family <- "#ffd320"
+# field_abundance_rank_tax[field_abundance_rank_tax$family=="Erwiniaceae" , ]$cols_family <- "#579d1c"
+field_abundance_rank_tax[field_abundance_rank_tax$family=="Nocardioidaceae" , ]$cols_family <- "#314004"
+field_abundance_rank_tax[ field_abundance_rank_tax$family=="Oxalobacteraceae" , ]$cols_family <-"#aecf00"
+field_abundance_rank_tax[ field_abundance_rank_tax$family=="Streptomycetaceae" , ]$cols_family <- "#8b995a"
+
+# field_abundance_rank_tax[ field_abundance_rank_tax$family=="Flavobacteriaceae" , ]$cols_family <- "#F0D5B4"
+# field_abundance_rank_tax[ field_abundance_rank_tax$family=="Planococcaceae", ]$cols_family <- "#7F5757"
+field_abundance_rank_tax[ field_abundance_rank_tax$family=="Chitinophagaceae", ]$cols_family <- "#6D4600"
+field_abundance_rank_tax[ field_abundance_rank_tax$family=="Sphingobacteriaceae", ]$cols_family <- "#c75536"
+field_abundance_rank_tax[ field_abundance_rank_tax$family=="Deinococcaceae", ]$cols_family <- "#031e33"
+
+field_abundance_rank_tax %<>% mutate(cols_family = case_when(!family %in% selected_OTU_families ~ "dimgrey", family %in% selected_OTU_families ~ cols_family))
+
+# field_abundance_rank_tax[ field_abundance_rank_tax$family==NA, ]$cols_family <- "dimgrey"
+# table(field_abundance_rank_tax$cols_family)
+
+## collapsed color vector for each level
+temp <- data.frame(field_abundance_rank_tax$family, field_abundance_rank_tax$cols_family)
+
+temp <- plyr::ddply(temp, .variables="field_abundance_rank_tax.cols_family", .fun=unique)   #library(plyr)
+field_abundance_rank_tax_level_cols_family <- as.character(temp[,2])
+names(field_abundance_rank_tax_level_cols_family) <- temp[,1]
+```
+
+```{r}
+cols_family_strains <- c("#a73e62", "#004586", "#4b1f6f", "#8f9ec9", "#ff950e", "#c5000b", "#0084d1", "#7e0021", "#83caff", "#ff420e", "#ffd320", "#314004", "#aecf00", "#8b995a", "#6D4600", "#c75536", "#031e33")
+```
+
+## Family distribution plot
+```{r}
+field_abundance_rank_tax %>% 
+  mutate(family_selected = case_when(cols_family %in% "dimgrey" ~ 1, 
+                                     !cols_family %in% "dimgrey" ~ 0)) %>% 
+  dplyr::arrange(family_selected) %>% 
+  ggplot(aes(x = compartment, y = Abundance_WT)) + 
+  geom_bar(aes(fill = reorder(family, desc(family_selected))), stat = "identity", position = "stack",  show.legend = FALSE) +
+  scale_fill_manual(values = field_abundance_rank_tax_level_cols_family)+
+  theme_classic() +
+  scale_x_discrete(labels= c("root", "rhizosphere"))+
+  labs(y = "relative abundance WT [%]", x = "")
+```
+
+## Phylum distribution
+```{r}
+field_abundance_rank_tax_selectedOTU <- field_abundance_rank_tax %>% filter(OTU %in% selected_OTU) 
+selected_OTU_phyla <- field_abundance_rank_tax_selectedOTU$phylum
+```
+
+```{r, include =FALSE}
+
+# field_abundance_rank_tax %<>% na.omit()
+
+field_abundance_rank_tax$cols_phylum <- as.character(field_abundance_rank_tax$phylum)
+
+field_abundance_rank_tax[field_abundance_rank_tax$phylum=="Actinobacteria", ]$cols_phylum <- "#1b9e77"
+field_abundance_rank_tax[field_abundance_rank_tax$phylum=="Bacteroidetes", ]$cols_phylum <- "#d95f02"
+field_abundance_rank_tax[field_abundance_rank_tax$phylum=="Proteobacteria", ]$cols_phylum <- "#7570b3"
+field_abundance_rank_tax[field_abundance_rank_tax$phylum=="Firmicutes", ]$cols_phylum <- "#e7298a"
+field_abundance_rank_tax[field_abundance_rank_tax$phylum=="Deinococcus-Thermus", ]$cols_phylum <- "#66a61e"
+
+
+field_abundance_rank_tax %<>% mutate(cols_phylum = case_when(!phylum %in% selected_OTU_phyla ~ "dimgrey", phylum %in% selected_OTU_phyla ~ cols_phylum))
+
+# field_abundance_rank_tax[ field_abundance_rank_tax$phylum==NA, ]$cols_phylum <- "dimgrey"
+# table(field_abundance_rank_tax$cols_phylum)s
+
+## collapsed color vector for each level
+temp <- data.frame(field_abundance_rank_tax$phylum, field_abundance_rank_tax$cols_phylum)
+
+temp <- plyr::ddply(temp, .variables="field_abundance_rank_tax.cols_phylum", .fun=unique)   #library(plyr)
+field_abundance_rank_tax_level_cols_phylum <- as.character(temp[,2])
+names(field_abundance_rank_tax_level_cols_phylum) <- temp[,1]
+```
+
+```{r}
+field_abundance_rank_tax %>% 
+  mutate(phylum_selected = case_when(cols_phylum %in% "dimgrey" ~ 1, 
+                                     !cols_phylum %in% "dimgrey" ~ 0)) %>% 
+  dplyr::arrange(phylum_selected) %>% 
+  ggplot(aes(x = compartment, y = Abundance_WT)) + 
+  geom_bar(aes(fill = reorder(phylum, desc(phylum_selected))), stat = "identity", position = "stack",  show.legend = FALSE) +
+  scale_fill_manual(values = field_abundance_rank_tax_level_cols_phylum)+
+  theme_classic() +
+  scale_x_discrete(labels= c("root", "rhizosphere"))+
+  labs(y = "relative abundance WT [%]", x = "", fill = "phylum")
+```
+

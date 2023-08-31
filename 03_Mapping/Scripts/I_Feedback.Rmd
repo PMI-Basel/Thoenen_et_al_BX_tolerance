@@ -1,0 +1,834 @@
+---
+title: "Mapping isolates to feedback"
+subtitle: "Thoenen_et_al_BX_tolerance"
+author: "Lisa Thoenen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    fig_caption: yes
+    fig_height: 10
+    fig_width: 10
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+
+Here we analyse the mapping output of the maize root bacteria isolates. We investigate how abundant the isolate corresponding ASVs are in the root microbiome of wild-type B73 maize plants grown in wild-type conditioned field soil in the greenhouse.   
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, error=FALSE, message=FALSE)
+```
+
+```{r, include=FALSE}
+rm(list=ls())
+```
+
+# SetUp
+Load the required packages and functions.
+
+
+```{r packages, echo=F, message=FALSE, warning=FALSE}
+# install.packages("sciplot")
+# install.packages("plyr")
+# install.packages("dplyr")
+# install.packages("pander")
+# install.packages("knitr")
+# install.packages("readr")
+# install.packages("readxl")
+# install.packages("ggplot2")
+# install.packages("emmeans")
+# install.packages("multcomp")
+# install.packages("ggpubr")
+# install.packages("ggpubr")
+# install.packages("tidyr")
+# install.packages("phyloseq")
+```
+
+```{r, echo=F, message=F, warning=F}
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# 
+# BiocManager::install("phyloseq")
+```
+
+```{r libraries and functions, echo=F, message=F, warning=F}
+# library(sciplot)
+library(plyr)
+library(dplyr)
+library(pander)
+# library(knitr)
+library(tidyr)
+library(readr)
+library(magrittr)
+library(readxl)
+library(ggplot2)
+library(emmeans)
+library(multcomp)
+#library(ggpubr)
+library(phyloseq)
+
+## functions
+source("../Input/functions/staxlab.R")
+source("../Input/functions/error.bar.R")
+
+se <- function(x) sqrt(var(x) / length(x))
+```
+
+
+## Design table  
+
+```{r design import, warning=F, echo=F, message=F}
+design <- read.table("../Input/I_Feedback/Database_S1_FB.txt", header=T)   # Database_S1.xlsx exported as tab-delimited text file
+rownames(design) <- design$sample_list_16S # ev remove again
+
+design %<>% dplyr::rename(compartment = sample_type,
+                          genotype = plant_genotype)
+
+## experimental factors
+design$soil <- gsub("field", "unconditioned_field", design$soil)
+design$exp <- gsub("field", "field_exp", design$exp)
+
+design$soil <- factor(design$soil, levels=c("unconditioned_field","BX+","BX-"))
+design$exp <- factor(design$exp, levels=c("field_exp","feedback"))
+design$compartment <- factor(design$compartment, levels=c("Soil","Rhizo","Root"))
+design$genotype <- factor(design$genotype, levels=c("no","WT","bx1"))
+# levels(design$genotype)
+
+## sample groups
+design$groups <- as.factor(paste(design$genotype, design$compartment, sep="_"))
+design$groups <- factor(design$groups, levels=c("no_Soil", "WT_Rhizo", "bx1_Rhizo", "WT_Root","bx1_Root") )  
+levels(design$groups)[1] <- "field_soil"
+# table(design$groups)    # number of reps per sample group
+
+## defining colors for sample groups
+design$cols <- design$groups
+levels(design$cols) <- c("dimgrey", "gold", "palegreen2", "gold2", "palegreen3")
+```
+
+This is how the design table looks like:
+
+```{r, echo=F}
+design[1:3,]
+```
+
+## Count table   
+
+```{r OTU import, warning=F, echo=F, message=F}
+bDAT <- read.table( "../Input/I_Feedback/bacteria_DAT100_FB.tab", row.names=1, sep="\t", header=T, blank.lines.skip = FALSE)
+
+rownames(bDAT) <- gsub("run08", " ", rownames(bDAT))
+rownames(bDAT) <- gsub("-r1_cutted_F_filt.fastq", " ", rownames(bDAT))
+rownames(bDAT) <- gsub("-", "_", rownames(bDAT))
+rownames(bDAT) <- gsub("_ _", "_", rownames(bDAT))
+rownames(bDAT) <- gsub("_F", "F", rownames(bDAT))
+rownames(bDAT) <- gsub(" ", "", rownames(bDAT))
+
+bDAT <- t(bDAT)
+
+design %>% head()
+design %<>% mutate(primer_16s_Fw_Rv = interaction(bc_799F, bc_1193R, sep = "_")) 
+
+rownames(design) <- design$primer_16s_Fw_Rv
+```
+
+This is how the count table looks like: 
+```{r, echo=F}
+bDAT[1:5, 1:5]
+```
+
+## Taxonomy table   
+
+```{r tax import, warning=F, echo=F, message=F}
+bTAX <- read.table( "../Input/I_Feedback/bacteria_TAXA100_FB.tab" , sep="\t", blank.lines.skip = FALSE, header = T)
+colnames(bTAX) <- c("kingdom", "phylum", "class", "order", "family", "genus")
+
+## define ASVs for removal (Eukaryotes, Cyanobacteria, Mitrochondria)
+bTAX %<>% filter(!kingdom %in% c("Eukaryota")) %>% 
+        filter(!phylum %in% c("Cyanobacteria")) %>% 
+        filter(!family %in% c("Mitochondria"))
+```
+
+This is how the taxonomy table looks like:  
+```{r, echo=F}
+bTAX[1:5, c(2,4,6)]
+```
+
+## Experimental design
+
+```{r field subset, fig.height=4, fig.width=5, warning=F, echo=F}
+# library(pander)
+design$groups_exp_soil <- as.factor(paste(design$genotype, design$compartment, design$exp, design$soil, sep="_"))
+
+design_summary <- table(design$groups_exp_soil)
+knitr::kable(design_summary, col.names = c("groups_experiment_soil", "Samples"))
+```
+
+```{r}
+## data normalization
+# total sum as %
+bDAT_norm <- t(t(bDAT)/colSums(bDAT)) * 100
+bDAT_norm <- bDAT_norm[rowSums(bDAT_norm) > 0,]  
+# dim(bDAT_norm)
+
+set.seed(3920)     # 3920 = zip code of Zermatt with lovely Matterhorn
+bDAT_rare <- t(vegan::rrarefy(t(bDAT), min(colSums(bDAT_norm))))
+
+all_phy <- phyloseq(sample_data(design), 
+                      otu_table(bDAT_norm, taxa_are_rows=T), 
+                      tax_table(as.matrix(bTAX[rownames(bDAT_norm),])) )
+```
+
+```{r}
+all_phy_psmelt <- psmelt(all_phy)
+```
+
+# Mapping bacterial isolates to microbiota members
+```{r}
+iso.tab.new.97 <- read.csv("../Input/I_Feedback/hits97_ASV_FB.csv")
+```
+
+```{r}
+colnames(iso.tab.new.97) <- c("Nr", "ASV", "Strain", "%")
+head(iso.tab.new.97) %>% pander()
+
+iso.tab.new.97 <- iso.tab.new.97 %>% dplyr::select("%", "Strain", "ASV")
+```
+
+### Abundance psmelt new mapping 
+```{r}
+iso.tab.new.97$Strain <- gsub("_27f", "", iso.tab.new.97$Strain)
+iso.tab.new.97$Strain <- gsub("_1492r", "", iso.tab.new.97$Strain)
+```
+
+LMX92 & LMX9231 were in the wrong direction in the sequences used for the mapping, but they are almost 100 % similar to LME3, therefore it will be the same mapping result.
+```{r}
+LME3 <- iso.tab.new.97 %>% filter(Strain %in% "LME3")
+LMX92 <- LME3 %>% mutate(Strain = gsub("LME3", "LMX92", Strain))
+LMX9231 <- LME3 %>% mutate(Strain = gsub("LME3", "LMX9231", Strain))
+
+iso.tab.new.97 <- rbind(iso.tab.new.97, LMX9231, LMX92)
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root <- all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  filter(compartment %in% "Root") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  unique()
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_rhizo <- all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  filter(compartment %in% "Rhizo") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  unique()
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_iso_new_mapping <- all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  filter(compartment %in% "Root") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% 
+  unique()
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping <- all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  filter(compartment %in% "Rhizo") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% 
+  unique()
+```
+
+Strains to remove: strange sequence that maps to a lot of ASVs
+- LAT1
+- LBH1
+- LBH4
+- LBH6
+- LTA5
+- LWH2
+- LWH6
+- LWO4
+
+```{r}
+all_phy_psmelt_FB_BXp_iso_new_mapping %<>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4"))
+
+all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping %<>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA))
+```
+
+
+```{r}
+# write.csv(all_phy_psmelt_FB_BXp_iso_new_mapping, "all_phy_psmelt_FB_BXp_iso_new_mapping.csv")
+```
+
+#### Display mapped ASV in rank abundance plot
+```{r}
+iso_names_new97 <- names(table(iso.tab.new.97$ASV))[-1]
+
+iso_names_new97 <- names(table(all_phy_psmelt_FB_BXp_iso_new_mapping$OTU))
+
+iso_names_new97 %>% unique() %>% length()
+```
+
+```{r}
+## Root samples
+Rootsamples_BXp_FB <- rownames(design)[which(design$soil=="BX+" & design$genotype=="WT" & design$compartment=="Root" & design$exp=="feedback")]
+Rootsamples_BXm_FB <- rownames(design)[which(design$soil=="BX-" & design$genotype=="WT" & design$compartment=="Root" & design$exp=="feedback")]
+
+## calculation of means and SE
+# WT and sorting for rank abundance
+bDAT_norm_root_WT_MEAN <- apply(bDAT_norm[, Rootsamples_BXp_FB ], 1, mean)
+bDAT_norm_root_WT_MEAN <- sort(bDAT_norm_root_WT_MEAN, decr=T)
+bDAT_norm_root_WT_SE <- apply(bDAT_norm[, Rootsamples_BXp_FB ], 1, se)[names(bDAT_norm_root_WT_MEAN)]
+# bx1
+bDAT_norm_root_bx_MEAN <- apply(bDAT_norm[, Rootsamples_BXm_FB ], 1, mean)[names(bDAT_norm_root_WT_MEAN)]
+bDAT_norm_root_bx_SE <- apply(bDAT_norm[, Rootsamples_BXm_FB ], 1, se)[names(bDAT_norm_root_WT_MEAN)]
+# summary
+bDAT_norm_root_MEANs <- cbind(bDAT_norm_root_WT_MEAN, bDAT_norm_root_bx_MEAN)
+colnames(bDAT_norm_root_MEANs) <- c("BX+","BX-")
+bDAT_norm_root_SEs <- cbind(bDAT_norm_root_WT_SE, bDAT_norm_root_bx_SE)
+colnames(bDAT_norm_root_SEs) <- c("BX+","BX-")
+```
+
+```{r}
+strain_col_new <- rep("black", length(rownames(bDAT_norm_root_MEANs)))
+names(strain_col_new) <- rownames(bDAT_norm_root_MEANs)
+strain_col_new <- ifelse(names(strain_col_new)  %in% iso_names_new97, "dodgerblue3","lightgrey")
+```
+
+```{r}
+## rank abundance plot
+# postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+# par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+# pdf("LAC11_is_ZOTU3257.pdf", height=4, width=5)
+p <- barplot(t(bDAT_norm_root_MEANs)[,1:100], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0, 15), 
+             cex.names=.75, main = "Feedback roots",
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_norm_root_MEANs)[1:100], col=strain_col_new[1:100], srt=45, cex=1)
+# legend
+legend(x="topright", legend=colnames(bDAT_norm_root_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_norm_root_MEANs)[,1:100], y1=t(bDAT_norm_root_MEANs)[,1:100] + t(bDAT_norm_root_MEANs)[,1:100], angle=90, length=0.02, lwd=1)
+# stats
+# stats_mw <- ifelse(rownames(bDAT_norm_rhizo_MEANs) %in% field_rhizo_lrt_OTUs, "*","")
+# text(y=(apply(bDAT_norm_rhizo_MEANs, 1, max)*1.75)[1:100], x=((p[1,] + p[2,])/2)[1:100], labels=stats_mw[1:100])
+# dev.off()
+
+p
+```
+
+#### Isolates in Rhizosphere microbiome
+
+```{r, fig.width=7, fig.height=5, message=F, echo=F}
+## Root samples
+Rhizosamples_BXp_FB <- rownames(design)[which(design$soil=="BX+" & design$genotype=="WT" & design$compartment=="Rhizo" & design$exp=="feedback")]
+Rhizosamples_BXm_FB <- rownames(design)[which(design$soil=="BX-" & design$genotype=="WT" & design$compartment=="Rhizo" & design$exp=="feedback")]
+
+## calculation of means and SE
+# WT and sorting for rank abundance
+bDAT_norm_rhizo_WT_MEAN <- apply(bDAT_norm[, Rhizosamples_BXp_FB ], 1, mean)
+bDAT_norm_rhizo_WT_MEAN <- sort(bDAT_norm_rhizo_WT_MEAN, decr=T)
+bDAT_norm_rhizo_WT_SE <- apply(bDAT_norm[, Rhizosamples_BXp_FB ], 1, se)[names(bDAT_norm_rhizo_WT_MEAN)]
+# bx1
+bDAT_norm_rhizo_bx_MEAN <- apply(bDAT_norm[, Rhizosamples_BXm_FB ], 1, mean)[names(bDAT_norm_rhizo_WT_MEAN)]
+bDAT_norm_rhizo_bx_SE <- apply(bDAT_norm[, Rhizosamples_BXm_FB ], 1, se)[names(bDAT_norm_rhizo_WT_MEAN)]
+# summary
+bDAT_norm_rhizo_MEANs <- cbind(bDAT_norm_rhizo_WT_MEAN, bDAT_norm_rhizo_bx_MEAN)
+colnames(bDAT_norm_rhizo_MEANs) <- c("BX+","BX-")
+bDAT_norm_rhizo_SEs <- cbind(bDAT_norm_rhizo_WT_SE, bDAT_norm_rhizo_bx_SE)
+colnames(bDAT_norm_rhizo_SEs) <- c("BX+","BX-")
+
+strain_col_rhizo_new <- rep("black", length(rownames(bDAT_norm_rhizo_MEANs)))
+names(strain_col_rhizo_new) <- rownames(bDAT_norm_rhizo_MEANs)
+strain_col_rhizo_new <- ifelse(names(strain_col_rhizo_new)  %in% iso_names_new97, "dodgerblue3","lightgrey")
+```
+
+```{r, fig.width=7, fig.height=5, message=F, echo=F}
+## rank abundance plot
+# postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
+# par(mar=c(11,4,4,4), oma=c(0,0,0,0))
+p <- barplot(t(bDAT_norm_rhizo_MEANs)[,1:100], border=NA,
+             col=c("gold2","palegreen3"), beside=T, las=2, ylim=c(0,5), 
+             cex.names=.75, main="Feedback rhizosphere", 
+             ylab=paste("relative abundance [%]",sep=" ") , xaxt="n")
+# source("functions/staxlab.R")
+staxlab(side=1, at=(p[1,]+p[2,])/2, labels=rownames(bDAT_norm_rhizo_MEANs)[1:100], col=strain_col_rhizo_new[1:100], srt=45, cex=1)
+# legend
+legend(x="topright", legend=colnames(bDAT_norm_rhizo_MEANs), col=c("gold2","palegreen3"), bty="n", xpd=TRUE, inset=c(0,0), pch=19, cex=1)
+# error bars
+arrows(x0=p, y0=t(bDAT_norm_rhizo_MEANs)[,1:100], y1=t(bDAT_norm_rhizo_MEANs)[,1:100] + t(bDAT_norm_rhizo_MEANs)[,1:100], angle=90, length=0.02, lwd=1)
+# stats
+# stats_mw <- ifelse(rownames(bDAT_norm_rhizo_MEANs) %in% field_rhizo_lrt_OTUs, "*","")
+# text(y=(apply(bDAT_norm_rhizo_MEANs, 1, max)*1.75)[1:100], x=((p[1,] + p[2,])/2)[1:100], labels=stats_mw[1:100])
+# dev.off()
+```
+
+
+#### Identity mapped ASV sorted abundance mean
+
+all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax = a table where there is abundance of each mapped ASV with taxonomy
+```{r}
+# Root
+all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax <- all_phy_psmelt_FB_BXp_iso_new_mapping %>% dplyr::select(-Strain, -'%') %>% dplyr::arrange(desc(Abundace_mean)) %>% unique()
+
+# write.csv(all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax, "all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax.csv")
+
+# Rhizo
+all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping_onlyASVtax <-  all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping %>% dplyr::select(-Strain, -'%') %>% dplyr::arrange(desc(Abundace_mean)) %>% unique()
+```
+
+sum all relative abundances in total of all represented ASVs 
+
+
+
+```{r}
+all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax %>% as.data.frame() %>% dplyr::select(-OTU) %>% unique() %>% group_by(genus)
+
+# Total microbiome (no mapping)
+root <- all_phy_psmelt_FB_BXp_root %>% as.data.frame() %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 99.96 % of the relative abundance
+rhizo <-all_phy_psmelt_FB_BXp_rhizo %>% as.data.frame() %>% dplyr::summarise(sum_abundance = sum(Abundace_mean))
+
+# % coverage relative abundance by the isolates
+map_root <- all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax %>% as.data.frame() %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 24 % of the relative abundance
+map_rhizo <- all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping_onlyASVtax  %>% as.data.frame() %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 10 % of the relative abundance
+
+# Top 100 ASVs
+### ... used for results text
+## Root
+all_phy_psmelt_FB_BXp_root_top100 <- all_phy_psmelt_FB_BXp_root %>% as.data.frame() %>% dplyr::arrange(desc(Abundace_mean)) %>% dplyr::slice(1:100)
+root_100 <- all_phy_psmelt_FB_BXp_root_top100 %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 62.2 %
+
+all_phy_psmelt_FB_BXp_root_top100_mapped_strain <- all_phy_psmelt_FB_BXp_root_top100 %>% dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA)) 
+n_top_100_strains <- all_phy_psmelt_FB_BXp_root_top100_mapped_strain$Strain %>% unique() %>% length()
+n_top_100_strains
+
+n_top_100_ASV <- all_phy_psmelt_FB_BXp_root_top100_mapped_strain$OTU %>% unique() %>% length()
+n_top_100_ASV
+
+all_phy_psmelt_FB_BXp_root_top100_mapped <- all_phy_psmelt_FB_BXp_root_top100_mapped_strain %>% dplyr::select(-Strain, -'%') %>% unique()
+map_root_100 <- all_phy_psmelt_FB_BXp_root_top100_mapped %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 20.08714
+
+all_phy_psmelt_FB_BXp_root_top100_mapped$family %>% plyr::count()
+
+# Top 100 ASVs
+## Rhizo
+all_phy_psmelt_FB_BXp_rhizo_top100 <- all_phy_psmelt_FB_BXp_rhizo %>% as.data.frame() %>% dplyr::arrange(desc(Abundace_mean)) %>% dplyr::slice(1:100)
+rhizo_100 <- all_phy_psmelt_FB_BXp_rhizo_top100 %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 35.8% 
+
+all_phy_psmelt_FB_BXp_rhizo_top100_mapped_strain <- all_phy_psmelt_FB_BXp_rhizo_top100 %>% dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA)) 
+all_phy_psmelt_FB_BXp_rhizo_top100_mapped <- all_phy_psmelt_FB_BXp_rhizo_top100_mapped_strain %>% dplyr::select(-Strain, -'%') %>% unique()
+map_rhizo_100 <- all_phy_psmelt_FB_BXp_rhizo_top100_mapped %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 7.512 % 
+
+# Top 50 ASVs
+### ... used for results text
+## Root
+all_phy_psmelt_FB_BXp_root_top50 <- all_phy_psmelt_FB_BXp_root %>% as.data.frame() %>% dplyr::arrange(desc(Abundace_mean)) %>% dplyr::slice(1:50)
+root_50 <- all_phy_psmelt_FB_BXp_root_top50 %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 48.1025 %
+
+all_phy_psmelt_FB_BXp_root_top50_mapped_strain <- all_phy_psmelt_FB_BXp_root_top50 %>% dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA)) 
+all_phy_psmelt_FB_BXp_root_top50_mapped_strain$Strain %>% unique() %>% length() # 94
+all_phy_psmelt_FB_BXp_root_top50_mapped_strain$OTU %>% unique() %>% length() # 94
+
+all_phy_psmelt_FB_BXp_root_top50_mapped <- all_phy_psmelt_FB_BXp_root_top50_mapped_strain %>% dplyr::select(-Strain, -'%') %>% unique()
+map_root_50 <- all_phy_psmelt_FB_BXp_root_top50_mapped %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 17.000 %
+
+# Top 50 ASVs
+## Rhizo
+all_phy_psmelt_FB_BXp_rhizo_top50 <- all_phy_psmelt_FB_BXp_rhizo %>% as.data.frame() %>% dplyr::arrange(desc(Abundace_mean)) %>% dplyr::slice(1:50)
+rhizo_50 <- all_phy_psmelt_FB_BXp_rhizo_top50 %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 25.68281 %
+
+all_phy_psmelt_FB_BXp_rhizo_top50_mapped <- all_phy_psmelt_FB_BXp_rhizo_top50 %>% dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA)) %>% dplyr::select(-Strain, -'%') %>% unique()
+map_rhizo_50 <- all_phy_psmelt_FB_BXp_rhizo_top50_mapped %>% dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 6.337912
+
+
+mapped_total_abundance <- data.frame("Compartment" = c("Root", "Root", "Root", "Rhizo", "Rhizo", "Rhizo"), "Selection_ASV" = c("total", "top50", "top100", "total", "top50", "top100"),  "Mapped_abundance" = c(map_root$sum_abundance, map_root_50$sum_abundance, map_root_100$sum_abundance, map_rhizo$sum_abundance, map_rhizo_50$sum_abundance, map_rhizo_100$sum_abundance), "Total_abundance" = c(root$sum_abundance, root_50$sum_abundance, root_100$sum_abundance, rhizo$sum_abundance, rhizo_50$sum_abundance, rhizo_100$sum_abundance)) %>% 
+  mutate(Percent_isolated = 100/(Total_abundance/Mapped_abundance))
+
+mapped_total_abundance %>% knitr::kable()
+```
+
+```{r}
+# all_phy_psmelt_BX_abundance_meanOTU_mapped <- all_phy_psmelt_iso_BX_abundance_meanOTU %>% as.data.frame() %>% dplyr::select(-OTU, -Strain) %>% unique() 
+
+all_phy_psmelt_mean <- all_phy_psmelt %>% 
+  dplyr::select(-Sample, -soil_sample) %>% 
+  filter(soil %in% "BX+") %>% 
+  filter(exp %in% "feedback") %>% 
+  group_by(OTU, compartment, genotype) %>% dplyr::summarise(mean_abundance = mean(Abundance))
+
+# Total microbiome (no mapping)
+total_abundance <- all_phy_psmelt_mean %>% 
+  group_by(compartment, genotype) %>% 
+  dplyr::summarise(sum_abundance = sum(mean_abundance)) # 99.96 % of the relative abundance
+
+total_abundance_map_ASV_root <- all_phy_psmelt_FB_BXp_iso_new_mapping_onlyASVtax %>% as.data.frame() %>% 
+  dplyr::summarise(sum_abundance = sum(Abundace_mean)) # 23.89866
+
+total_abundance_map_ASV_rhizo <- all_phy_psmelt_FB_BXp_rhizo_iso_new_mapping_onlyASVtax %>% as.data.frame() %>% 
+  dplyr::summarise(sum_abundance = sum(Abundace_mean)) #  10.37324
+
+total_abundance_map_ASV <- rbind(total_abundance_map_ASV_root, total_abundance_map_ASV_rhizo)
+total_abundance_map_ASV %>% knitr::kable()
+```
+
+##  Cumulative abundance to plot in tax tree
+```{r}
+all_phy_psmelt_FB_BXp_iso_new_mapping_cum_abun <- all_phy_psmelt_FB_BXp_iso_new_mapping %>% group_by(Strain) %>% dplyr::summarize(Abundance_cum_Strain = sum(Abundace_mean))
+```
+
+Abundance, BXcol table for phylogenetic tree Fig. 1
+
+```{r}
+#dir.create("../Output/I_Feedback", recursive=T, showWarnings=F)
+#write_rds(all_phy_psmelt_FB_BXp_iso_new_mapping_cum_abun, "../Output/I_Feedback/all_phy_psmelt_FB_BXp_iso_new_mapping_cum_abun.rds")
+```
+
+# Families in microbiome
+```{r}
+all_phy_psmelt_iso_mappedstrains <- all_phy_psmelt_FB_BXp_iso_new_mapping_cum_abun %>% filter(!Strain %in% NA) %>% filter(Strain != "LBN6")
+#all_phy_psmelt_iso_mappedstrains <- all_phy_psmelt_iso %>% filter(!Strain %in% NA) %>% filter(Strain != "LBN6")
+mapped_ASVs_strains <- all_phy_psmelt_iso_mappedstrains$OTU %>% unique()
+selected_OTU_families <- all_phy_psmelt_iso_mappedstrains$family %>% unique()
+```
+
+
+```{r, include =FALSE}
+# scales::show_col(calc_pal()(12))
+all_phy_psmelt %<>% na.omit()
+
+all_phy_psmelt$cols_family <- as.character(all_phy_psmelt$family)
+
+all_phy_psmelt[all_phy_psmelt$family=="Pseudohongiellaceae", ]$cols_family <- "#a73e62" # Moraxellacae
+all_phy_psmelt[all_phy_psmelt$family=="Bacillaceae" , ]$cols_family <- "#004586"
+all_phy_psmelt[all_phy_psmelt$family=="Pseudomonadaceae" , ]$cols_family <- "#4b1f6f"
+all_phy_psmelt[all_phy_psmelt$family=="Paenibacillaceae" , ]$cols_family <- "#8f9ec9"
+all_phy_psmelt[all_phy_psmelt$family=="Rhizobiaceae", ]$cols_family <- "#ff950e"
+all_phy_psmelt[all_phy_psmelt$family=="Sphingomonadaceae", ]$cols_family <- "#c5000b"
+all_phy_psmelt[all_phy_psmelt$family=="Xanthomonadaceae", ]$cols_family <- "#0084d1"
+all_phy_psmelt[all_phy_psmelt$family=="Microbacteriaceae" , ]$cols_family <- "#7e0021"
+all_phy_psmelt[all_phy_psmelt$family=="Micrococcaceae" , ]$cols_family <- "#83caff"
+all_phy_psmelt[all_phy_psmelt$family=="Chitinophagaceae" , ]$cols_family <- "#ff420e"
+all_phy_psmelt[all_phy_psmelt$family=="Enterobacteriaceae" , ]$cols_family <- "#ffd320"
+# all_phy_psmelt[all_phy_psmelt$family=="Erwiniaceae" , ]$cols_family <- "#579d1c"
+all_phy_psmelt[all_phy_psmelt$family=="Nocardioidaceae" , ]$cols_family <- "#314004"
+#all_phy_psmelt[ all_phy_psmelt$family=="Oxalobacteraceae" , ]$cols_family <-"#aecf00"
+all_phy_psmelt[ all_phy_psmelt$family=="Burkholderiaceae" , ]$cols_family <-"#aecf00" # Oxalobacteraceae
+all_phy_psmelt[ all_phy_psmelt$family=="Streptomycetaceae" , ]$cols_family <- "#8b995a"
+
+# all_phy_psmelt[ all_phy_psmelt$family=="Flavobacteriaceae" , ]$cols_family <- "#F0D5B4"
+# all_phy_psmelt[ all_phy_psmelt$family=="Planococcaceae", ]$cols_family <- "#7F5757"
+all_phy_psmelt[ all_phy_psmelt$family=="Chitinophagaceae", ]$cols_family <- "#6D4600"
+all_phy_psmelt[ all_phy_psmelt$family=="Sphingobacteriaceae", ]$cols_family <- "#c75536"
+all_phy_psmelt[ all_phy_psmelt$family=="Deinococcaceae", ]$cols_family <- "#031e33"
+
+
+
+all_phy_psmelt %<>% mutate(cols_family = case_when(!family %in% selected_OTU_families ~ "dimgrey", family %in% selected_OTU_families ~ cols_family))
+
+# all_phy_psmelt[ all_phy_psmelt$family==NA, ]$cols_family <- "dimgrey"
+# table(all_phy_psmelt$cols_family)
+
+## collapsed color vector for each level
+temp <- data.frame(all_phy_psmelt$family, all_phy_psmelt$cols_family)
+
+temp <- plyr::ddply(temp, .variables="all_phy_psmelt.cols_family", .fun=unique)   #library(plyr)
+all_phy_psmelt_level_cols_family <- as.character(temp[,2])
+names(all_phy_psmelt_level_cols_family) <- temp[,1]
+```
+
+```{r}
+all_phy_psmelt %>% 
+  dplyr::select(-Sample, -soil_sample) %>% 
+  filter(soil %in% "BX+") %>% 
+  filter(exp %in% "feedback") %>% 
+  group_by(OTU, compartment, genotype, family) %>% dplyr::summarise(mean_abundance = mean(Abundance)) %>% 
+  group_by(compartment, genotype) %>% 
+ #  dplyr::summarise(sum_abundance = sum(mean_abundance))
+  # dplyr::group_by(OTU, family, compartment, genotype, soil, exp) %>% 
+  # dplyr::summarise(Abundance_mean = mean(Abundance)) %>% 
+  # filter(genotype %in% "WT") %>% 
+  # filter(soil %in% "BX+") %>% 
+  # filter(exp %in% "feedback") %>% 
+  #mutate(family_selected = case_when(!OTU %in% mapped_ASVs_strains ~ 1, OTU %in% mapped_ASVs_strains ~ 0)) %>% 
+  # dplyr::arrange(family_selected) %>% 
+  ggplot(aes(x = interaction(compartment), y = mean_abundance)) + 
+  geom_bar(aes(fill = family), stat = "identity", position = "stack",  show.legend = FALSE) +
+  scale_fill_manual(values = all_phy_psmelt_level_cols_family)+
+  theme_classic() +
+  # scale_x_discrete(labels= c("root", "rhizosphere"))+
+  labs(y = "relative abundance WT [%]", x = "")
+```
+
+
+```{r}
+all_phy_psmelt %>% 
+  # filter(exp %in% "feedback") %>% 
+  # filter(genotype %in% "WT") %>% 
+  # # filter(compartment %in% "Root") %>% 
+  # filter(soil %in% "BX+") %>% 
+  # # dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  # group_by(OTU, phylum, sample_id, family, genus, soil, compartment) %>% 
+  #dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  # dplyr::summarise(sum_abundance = sum(Abundace_mean))
+  # dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% 
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs_strains ~ 1, OTU %in% mapped_ASVs_strains ~ 0)) %>% 
+  unique() %>% 
+  # dplyr::arrange(family_selected) %>% 
+  ggplot(aes(x = compartment, y = Abundance)) + 
+  geom_bar(aes(fill = family), stat = "identity", position = "stack",  show.legend = FALSE) +
+  facet_wrap(soil ~ exp)+
+  scale_fill_manual(values = all_phy_psmelt_level_cols_family)+
+  theme_classic() +
+  # scale_x_discrete(labels= c("root", "rhizosphere"))+
+  labs(y = "relative abundance WT [%]", x = "")
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root %>% 
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs_strains ~ 1, OTU %in% mapped_ASVs_strains ~ 0)) %>%
+  dplyr::arrange(family_selected) %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family_selected), stat = "identity", position = "stack",  show.legend = TRUE) +
+  facet_wrap( ~ soil)
+```
+
+```{r}
+all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  filter(compartment %in% "Root") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% arrange(desc(Abundace_mean)) %>% 
+  dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% 
+  filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4")) %>% 
+  dplyr::select(-Strain, -`%`) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs_strains ~ 1, OTU %in% mapped_ASVs_strains ~ 0)) %>% 
+  # dplyr::arrange(desc(Abundace_mean)) %>% 
+  # dplyr::arrange(family_selected) %>% 
+  unique() %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(fill = "grey", stat = "identity", position = "stack",  show.legend = FALSE) +
+  # geom_bar(aes(fill = family_selected), stat = "identity", position = "stack",  show.legend = FALSE) +
+  facet_wrap( ~ soil)
+  # scale_fill_manual(values = all_phy_psmelt_level_cols_family)
+```
+
+```{r}
+all_phy_psmelt %>% 
+  filter(exp %in% "feedback") %>% 
+  filter(genotype %in% "WT") %>% 
+  # filter(compartment %in% "Rhizo") %>% 
+  filter(soil %in% "BX+") %>% 
+  dplyr::select(OTU, phylum, family, genus, Abundance, soil) %>% 
+  group_by(OTU, phylum, family, genus, soil) %>% 
+  dplyr::summarise(Abundace_mean = mean(Abundance)) %>% 
+  # dplyr::left_join(., iso.tab.new.97, by = c("OTU" = "ASV")) %>% 
+  unique() %>% 
+  # filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4")) %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(fill = "grey", stat = "identity", position = "stack",  show.legend = FALSE) 
+```
+
+# here it works to sum to 100
+
+## Root
+```{r}
+mapped_ASVs_list <- all_phy_psmelt_FB_BXp_iso_new_mapping %>% as.data.frame() %>% dplyr::select(OTU) %>% unique()
+mapped_ASVs <- mapped_ASVs_list$OTU
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root %>%  
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(fill = "grey", stat = "identity", position = "stack",  show.legend = FALSE) 
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root %>%  
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  arrange((family_selected)) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family_selected), stat = "identity", position = "stack",  show.legend = TRUE) 
+```
+
+```{r}
+# all_phy_psmelt_FB_BXp_root %<>% na.omit()
+
+all_phy_psmelt_FB_BXp_root %<>%  
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) 
+
+all_phy_psmelt_FB_BXp_root %>% filter(family_selected %in% "mapped")
+
+all_phy_psmelt_FB_BXp_root$cols_family <- as.character(all_phy_psmelt_FB_BXp_root$family)
+
+all_phy_psmelt_FB_BXp_root %<>%  
+  mutate(col_ASV = case_when(family_selected %in% "not mapped" ~ "grey", family_selected %in% "mapped" ~ "blue")) 
+
+## collapsed color vector for each level
+temp <- data.frame(all_phy_psmelt_FB_BXp_root$family_selected, all_phy_psmelt_FB_BXp_root$col_ASV)
+
+temp <- plyr::ddply(temp, .variables="all_phy_psmelt_FB_BXp_root.col_ASV", .fun=unique)   #library(plyr)
+all_phy_psmelt_level_col_ASV <- as.character(temp[,2])
+names(all_phy_psmelt_level_col_ASV) <- temp[,1]
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root <- left_join(all_phy_psmelt_FB_BXp_root %>% as.data.frame(), all_phy_psmelt %>% dplyr::select(OTU, cols_family), by = "OTU")
+
+all_phy_psmelt_FB_BXp_root %<>% mutate(cols_family_ASV = case_when(family_selected %in% "not mapped" ~ "grey", family_selected %in% "mapped" ~ cols_family.y)) 
+
+
+## collapsed color vector for each level
+temp <- data.frame(all_phy_psmelt_FB_BXp_root$family, all_phy_psmelt_FB_BXp_root$cols_family_ASV)
+
+temp <- plyr::ddply(temp, .variables="all_phy_psmelt_FB_BXp_root.cols_family_ASV", .fun=unique)   #library(plyr)
+all_phy_psmelt_level_cols_family_ASV <- as.character(temp[,2])
+names(all_phy_psmelt_level_cols_family_ASV) <- temp[,1]
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_root %>%  
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  arrange((family_selected)) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family_selected), stat = "identity", position = "stack",  show.legend = TRUE) +
+  scale_fill_manual(values = all_phy_psmelt_level_col_ASV)
+```
+
+```{r}
+mapped_ASV_per_root <- all_phy_psmelt_FB_BXp_root %>% 
+  mutate(family_selected = case_when(family %in% "Planococcaceae" ~ "not mapped", !family %in% "Planococcaceae" ~ family_selected)) %>% 
+  mutate(family_selected = case_when(family %in% "Rhodanobacteraceae" ~ "not mapped", !family %in% "Rhodanobacteraceae" ~ family_selected)) %>% 
+  mutate(family_selected = case_when(family %in% "Weeksellaceae" ~ "not mapped", !family %in% "Rhodanobacteraceae" ~ family_selected)) %>% 
+  mutate(family = gsub("Oxalobacteraceae", "Burkholderiaceae", family)) %>% 
+  mutate(family = gsub("Moraxellacae", "Pseudohongiellaceae", family)) %>% 
+  mutate(family = case_when(family_selected %in% "mapped" ~ family, family_selected %in% "not mapped" ~ "0")) %>% 
+  unique() %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  arrange(desc(family)) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  ggplot(aes(x = soil, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family), stat = "identity", position = "stack",  show.legend = TRUE) +
+  scale_x_discrete(label = "root") +
+  scale_fill_manual(values = all_phy_psmelt_level_cols_family_ASV) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.3)))+
+  theme_classic()+
+  labs(x = "", 
+       y = "relative abundance [%]", 
+       fill = "Family")
+
+mapped_ASV_per_root
+
+# ggsave(plot = mapped_ASV_per_root, filename = "mapped_ASV_per_root.pdf", width = 8.8, height = 15, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = mapped_ASV_per_root, filename = "mapped_ASV_per_root.svg", width = 8.8, height = 15, dpi = 300, scale = 1, units = "cm")
+```
+
+## Rhizo
+
+```{r}
+all_phy_psmelt_FB_BXp_rhizo %>%  
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  arrange((family_selected)) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  ggplot(aes(x = 1, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family_selected), stat = "identity", position = "stack",  show.legend = TRUE) 
+```
+
+```{r}
+# all_phy_psmelt_FB_BXp_rhizo %<>% na.omit()
+
+all_phy_psmelt_FB_BXp_rhizo %<>%  
+  mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) 
+
+all_phy_psmelt_FB_BXp_rhizo %>% filter(family_selected %in% "mapped")
+
+all_phy_psmelt_FB_BXp_rhizo$cols_family <- as.character(all_phy_psmelt_FB_BXp_rhizo$family)
+
+all_phy_psmelt_FB_BXp_rhizo %<>%  
+  mutate(col_ASV = case_when(family_selected %in% "not mapped" ~ "grey", family_selected %in% "mapped" ~ "blue")) 
+
+## collapsed color vector for each level
+temp <- data.frame(all_phy_psmelt_FB_BXp_rhizo$family_selected, all_phy_psmelt_FB_BXp_rhizo$col_ASV)
+
+temp <- plyr::ddply(temp, .variables="all_phy_psmelt_FB_BXp_rhizo.col_ASV", .fun=unique)   #library(plyr)
+all_phy_psmelt_level_col_ASV <- as.character(temp[,2])
+names(all_phy_psmelt_level_col_ASV) <- temp[,1]
+```
+
+```{r}
+all_phy_psmelt_FB_BXp_rhizo <- left_join(all_phy_psmelt_FB_BXp_rhizo %>% as.data.frame(), all_phy_psmelt %>% dplyr::select(OTU, cols_family), by = "OTU")
+
+all_phy_psmelt_FB_BXp_rhizo %<>% mutate(cols_family_ASV = case_when(family_selected %in% "not mapped" ~ "grey", family_selected %in% "mapped" ~ cols_family.y)) 
+
+
+## collapsed color vector for each level
+temp <- data.frame(all_phy_psmelt_FB_BXp_rhizo$family, all_phy_psmelt_FB_BXp_rhizo$cols_family_ASV)
+
+temp <- plyr::ddply(temp, .variables="all_phy_psmelt_FB_BXp_rhizo.cols_family_ASV", .fun=unique)   #library(plyr)
+all_phy_psmelt_level_cols_family_ASV <- as.character(temp[,2])
+names(all_phy_psmelt_level_cols_family_ASV) <- temp[,1]
+```
+
+```{r}
+mapped_ASV_per_rhizo <- all_phy_psmelt_FB_BXp_rhizo %>% 
+  mutate(family_selected = case_when(family %in% "Planococcaceae" ~ "not mapped", !family %in% "Planococcaceae" ~ family_selected)) %>% 
+  mutate(family_selected = case_when(family %in% "Rhodanobacteraceae" ~ "not mapped", !family %in% "Rhodanobacteraceae" ~ family_selected)) %>% 
+  mutate(family_selected = case_when(family %in% "Weeksellaceae" ~ "not mapped", !family %in% "Rhodanobacteraceae" ~ family_selected)) %>% 
+  mutate(family = gsub("Oxalobacteraceae", "Burkholderiaceae", family)) %>% 
+  mutate(family = gsub("Moraxellacae", "Pseudohongiellaceae", family)) %>% 
+  mutate(family = case_when(family_selected %in% "mapped" ~ family, family_selected %in% "not mapped" ~ "0")) %>% 
+  unique() %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  arrange(desc(family)) %>% 
+  # mutate(family_selected = case_when(!OTU %in% mapped_ASVs ~ "not mapped", OTU %in% mapped_ASVs ~ "mapped")) %>% 
+  ggplot(aes(x = soil, y = Abundace_mean)) + 
+  geom_bar(aes(fill = family), stat = "identity", position = "stack",  show.legend = FALSE) +
+  scale_x_discrete(label = "rhizosphere") +
+  scale_fill_manual(values = all_phy_psmelt_level_cols_family_ASV) +
+  theme_classic()+
+  scale_y_continuous(expand = expansion(mult = c(0, 0.3)))+
+  labs(x = "", 
+       y = "relative abundance [%]", 
+       fill = "Family")
+
+mapped_ASV_per_rhizo
+
+# ggsave(plot = mapped_ASV_per_rhizo, filename = "mapped_ASV_per_rhizo.pdf", width = 8.8, height = 15, dpi = 300, scale = 1, units = "cm")
+# 
+# ggsave(plot = mapped_ASV_per_rhizo, filename = "mapped_ASV_per_rhizo.svg", width =  8.8, height = 15, dpi = 300, scale = 1, units = "cm")
+```
+
+```{r}
+
+```
+

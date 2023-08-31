@@ -1,0 +1,2 @@
+"lower in WT" "unchanged" "higher in WT"
+"1*design_field$groupsWT_Root -1*design_field$groupsbx1_Root" 9 175 3
