@@ -184,7 +184,7 @@ design_summary <- table(design$groups_genotype_compartment_location_background_r
 knitr::kable(design_summary, col.names = c("groups_genotype_compartment_location_background_root_type", "Samples"))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## data normalization
 # total sum as %
 bDAT_norm <- t(t(bDAT)/colSums(bDAT)) * 100
@@ -204,12 +204,12 @@ all_phy <- phyloseq(sample_data(design),
                       tax_table(as.matrix(bTAX[rownames(bDAT_norm),])) )
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt <- psmelt(all_phy)
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 dir.create("../Output/II_Field_soils", recursive = T, showWarnings = F)
 #write_rds(design, "../Output/II_Field_soils/design.rds")
 #write_rds(bDAT_norm, "../Output/II_Field_soils/bDAT_norm.rds")
@@ -218,7 +218,7 @@ dir.create("../Output/II_Field_soils", recursive = T, showWarnings = F)
 
 # Mapping bacterial isolates to microbiota members 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # ### uploading isolate-OTU assignments
 iso.tab <- read.csv("../Input/II_Field_soils/hits97_field.csv")
 
@@ -229,7 +229,7 @@ iso.tab$Strain <- gsub("_1492r", "", iso.tab$Strain)
 
 LMX92 & LMX9231 were in the wrong direction in the sequences used for the mapping, but they are almost 100 % similar to LME3, therefore it will be the same mapping result.
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 LME3 <- iso.tab %>% filter(Strain %in% "LME3")
 LMX92 <- LME3 %>% mutate(Strain = gsub("LME3", "LMX92", Strain))
 LMX9231 <- LME3 %>% mutate(Strain = gsub("LME3", "LMX9231", Strain))
@@ -237,7 +237,7 @@ LMX9231 <- LME3 %>% mutate(Strain = gsub("LME3", "LMX9231", Strain))
 iso.tab <- rbind(iso.tab, LMX9231, LMX92)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso.tab %<>% filter(!Strain %in% c("LAT1", "LBH1", "LBH4", "LBH6", "LTA5", "LWH2", "LWH6", "LWO4", NA))
 
 head(iso.tab) %>% pander()
@@ -250,7 +250,7 @@ iso_names <- names(table(iso.tab$ASV))[-1]
 #write_rds(iso_names, "../Output/II_Field_soils/iso_names.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # design <- read_rds("design.rds")
 # bDAT_norm <- read_rds("bDAT_norm.rds")
 # all_phy_psmelt <- read_rds("all_phy_psmelt.rds")
@@ -346,7 +346,7 @@ arrows(x0=p, y0=t(bDAT_norm_rhizo_Ch_MEANs)[,1:100], y1=t(bDAT_norm_rhizo_Ch_MEA
 # Isolates mapped to microbiome
 ## Isolates in root microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col <- rep("black", length(rownames(bDAT_norm_root_Ch_MEANs)))
 names(strain_col) <- rownames(bDAT_norm_root_Ch_MEANs)
 strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -355,7 +355,7 @@ strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey
 Supplementary figure
 600 x 1600
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## rank abundance plot
 # postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
 # par(mar=c(11,4,4,4), oma=c(0,0,0,0))
@@ -378,7 +378,7 @@ arrows(x0=p, y0=t(bDAT_norm_root_Ch_MEANs)[,1:100], y1=t(bDAT_norm_root_Ch_MEANs
 
 ## Isolates in Rhizosphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_rhizo <- rep("black", length(rownames(bDAT_norm_rhizo_Ch_MEANs)))
 names(strain_col_rhizo) <- rownames(bDAT_norm_rhizo_Ch_MEANs)
 strain_col_rhizo <- ifelse(names(strain_col_rhizo)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -493,13 +493,13 @@ arrows(x0=p, y0=t(bDAT_norm_rhizo_Zh_MEANs)[,1:100], y1=t(bDAT_norm_rhizo_Zh_MEA
 # Isolates mapped to microbiome
 ## Isolates in root microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col <- rep("black", length(rownames(bDAT_norm_root_Zh_MEANs)))
 names(strain_col) <- rownames(bDAT_norm_root_Zh_MEANs)
 strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## rank abundance plot
 # postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
 # par(mar=c(11,4,4,4), oma=c(0,0,0,0))
@@ -522,7 +522,7 @@ arrows(x0=p, y0=t(bDAT_norm_root_Zh_MEANs)[,1:100], y1=t(bDAT_norm_root_Zh_MEANs
 
 # Isolates in Rhizosphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_rhizo <- rep("black", length(rownames(bDAT_norm_rhizo_Zh_MEANs)))
 names(strain_col_rhizo) <- rownames(bDAT_norm_rhizo_Zh_MEANs)
 strain_col_rhizo <- ifelse(names(strain_col_rhizo)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -637,13 +637,13 @@ arrows(x0=p, y0=t(bDAT_norm_rhizo_Zh_22_MEANs)[,1:100], y1=t(bDAT_norm_rhizo_Zh_
 # Isolates mapped to microbiome
 ## Isolates in root microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col <- rep("black", length(rownames(bDAT_norm_root_Zh_22_MEANs)))
 names(strain_col) <- rownames(bDAT_norm_root_Zh_22_MEANs)
 strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## rank abundance plot
 # postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
 # par(mar=c(11,4,4,4), oma=c(0,0,0,0))
@@ -666,7 +666,7 @@ arrows(x0=p, y0=t(bDAT_norm_root_Zh_22_MEANs)[,1:100], y1=t(bDAT_norm_root_Zh_22
 
 # Isolates in Rhizosphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_rhizo <- rep("black", length(rownames(bDAT_norm_rhizo_Zh_22_MEANs)))
 names(strain_col_rhizo) <- rownames(bDAT_norm_rhizo_Zh_22_MEANs)
 strain_col_rhizo <- ifelse(names(strain_col_rhizo)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -781,13 +781,13 @@ arrows(x0=p, y0=t(bDAT_norm_rhizo_Au_22_MEANs)[,1:100], y1=t(bDAT_norm_rhizo_Au_
 # Isolates mapped to microbiome
 ## Isolates in root microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col <- rep("black", length(rownames(bDAT_norm_root_Au_22_MEANs)))
 names(strain_col) <- rownames(bDAT_norm_root_Au_22_MEANs)
 strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## rank abundance plot
 # postscript("Field_rhizo_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
 # par(mar=c(11,4,4,4), oma=c(0,0,0,0))
@@ -810,7 +810,7 @@ arrows(x0=p, y0=t(bDAT_norm_root_Au_22_MEANs)[,1:100], y1=t(bDAT_norm_root_Au_22
 
 # Isolates in Rhizosphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_rhizo <- rep("black", length(rownames(bDAT_norm_rhizo_Au_22_MEANs)))
 names(strain_col_rhizo) <- rownames(bDAT_norm_rhizo_Au_22_MEANs)
 strain_col_rhizo <- ifelse(names(strain_col_rhizo)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -965,13 +965,13 @@ arrows(x0=p, y0=t(bDAT_norm_primary_Sh_22_MEANs)[,1:100], y1=t(bDAT_norm_primary
 # Isolates mapped to microbiome
 ## Isolates in root microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col <- rep("black", length(rownames(bDAT_norm_root_Sh_22_MEANs)))
 names(strain_col) <- rownames(bDAT_norm_root_Sh_22_MEANs)
 strain_col <- ifelse(names(strain_col)  %in% iso_names, "dodgerblue3","lightgrey")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ## rank abundance plot
 # postscript("Field_Crown_profile_norm_MEANs_bacteria.eps", paper="special", width=7, height=5, horizontal = FALSE)
 # par(mar=c(11,4,4,4), oma=c(0,0,0,0))
@@ -994,7 +994,7 @@ arrows(x0=p, y0=t(bDAT_norm_root_Sh_22_MEANs)[,1:100], y1=t(bDAT_norm_root_Sh_22
 
 # Isolates in Crownsphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_Crown <- rep("black", length(rownames(bDAT_norm_Crown_Sh_22_MEANs)))
 names(strain_col_Crown) <- rownames(bDAT_norm_Crown_Sh_22_MEANs)
 strain_col_Crown <- ifelse(names(strain_col_Crown)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -1022,7 +1022,7 @@ arrows(x0=p, y0=t(bDAT_norm_Crown_Sh_22_MEANs)[,1:100], y1=t(bDAT_norm_Crown_Sh_
 
 # Isolates in primarysphere microbiome
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strain_col_primary <- rep("black", length(rownames(bDAT_norm_primary_Sh_22_MEANs)))
 names(strain_col_primary) <- rownames(bDAT_norm_primary_Sh_22_MEANs)
 strain_col_primary <- ifelse(names(strain_col_primary)  %in% iso_names, "dodgerblue3","lightgrey")
@@ -1050,7 +1050,7 @@ arrows(x0=p, y0=t(bDAT_norm_primary_Sh_22_MEANs)[,1:100], y1=t(bDAT_norm_primary
 
 
 # Abundance psmelt
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso <- all_phy_psmelt %>% filter(root_type %in% c("no", "primary")) %>% 
                                                   dplyr::select(OTU, phylum, family, genus, Abundance, location, background, genotype,
                                                         compartment) %>% 
@@ -1061,7 +1061,7 @@ all_phy_psmelt_iso <- all_phy_psmelt %>% filter(root_type %in% c("no", "primary"
                                                        unique()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 #write_rds(all_phy_psmelt_iso, "../Output/II_Field_soils/all_phy_psmelt_iso.rds")
 ```
 
@@ -1073,7 +1073,7 @@ x Input `Changins_B73_WT_root_rank` can't be recycled to size 1.
 i Input `Changins_B73_WT_root_rank` is `1:nrow(.)`.
 i Input `Changins_B73_WT_root_rank` must be size 1, not 26571.
 i The error occurred in group 1: OTU = "ASV1", phylum = "Proteobacteria", family = "Pseudomonadaceae", genus = "Pseudomonas".
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_group_abundance_rank <- all_phy_psmelt_iso_group_abundance %>% as.data.frame() %>% 
 #   dplyr::select(-Strain, -Ithaca_W22_bx6_soil, -Ithaca_W22_bx6_rhizo, -Ithaca_W22_bx6_root, -Ithaca_W22a_bx2_soil, -Ithaca_W22a_bx2_rhizo,
 #                 -Ithaca_W22a_bx2_root, -Sheffield_W22_bx6_root, -Sheffield_W22a_bx2_root) %>%  
@@ -1110,21 +1110,21 @@ i The error occurred in group 1: OTU = "ASV1", phylum = "Proteobacteria", family
 #   mutate(Isolate = case_when(Strain != "NA" ~ TRUE, Strain %in% NA ~ FALSE))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_group_abundance_rank_iso %>% dplyr::select(OTU, phylum, family, genus, BXp_feedback_WT_Root_Rank, BXm_feedback_WT_Root_Rank, Strain) %>% filter(Strain != "NA") %>% knitr::kable()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_group_abundance_rank %>% dplyr::select(OTU, phylum, family, genus, BXp_feedback_WT_Root_Rank, BXm_feedback_WT_Root_Rank, Isolate) %>% unique() %>% dplyr::arrange(BXp_feedback_WT_Root_Rank) %>% as.data.frame() %>% slice_head(n = 100) %>%  knitr::kable() 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # write_rds(all_phy_psmelt_iso_group_abundance_rank_iso, "all_phy_psmelt_iso_group_abundance_rank_iso_Hu_et_al_FB.rds")
 # write_rds(all_phy_psmelt_iso_group_abundance_rank, "all_phy_psmelt_iso_group_abundance_rank_Hu_et_al_FB.rds")
 ```
  
 # BX colonization psmelt - read rds
-```{r}
+```{r, echo=F, message=F, warning=F}
 # design <- read_rds("design.rds")
 # bDAT_norm <- read_rds("bDAT_norm.rds")
 # all_phy_psmelt <- read_rds("all_phy_psmelt.rds")
@@ -1136,7 +1136,7 @@ i The error occurred in group 1: OTU = "ASV1", phylum = "Proteobacteria", family
 
 For MRB tree Fig. 1A and for correlations Fig 5A&B
 "all_phy_psmelt_iso_BX_abundance.rds"
-```{r}
+```{r, echo=F, message=F, warning=F}
 # the computation of these two commands takes a lot of time and therefore the file is saved as rds and then read as rds back into R
 
 # # select the columns and the root type
@@ -1169,13 +1169,13 @@ all_phy_psmelt_iso_BX <- all_phy_psmelt_BX %>%
 #write_rds(all_phy_psmelt_BX, "../Output/II_Field_soils/all_phy_psmelt_BX.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance <- read_rds("all_phy_psmelt_iso_BX_abundance.rds")
 # 
 # all_phy_psmelt_BX_abundance <- read_rds("all_phy_psmelt_BX_abundance.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance_meanOTU <- all_phy_psmelt_iso_BX_abundance %>% group_by(OTU, family, location, background, compartment, Strain) %>% dplyr::summarize(WT_mean = mean(WT), bx1_mean = mean(bx1), BXcol_mean = mean(BXcol), log2FC_mean = mean(log2FC), WTbx1dif_mean = mean(WTbx1dif))
 
 all_phy_psmelt_iso_BX_abundance_meanOTU$family <- gsub("Burkholderiaceae", "Oxalobacteraceae", all_phy_psmelt_iso_BX_abundance_meanOTU$family)
@@ -1184,12 +1184,12 @@ all_phy_psmelt_iso_BX_abundance_meanOTU$family <- gsub("Burkholderiaceae", "Oxal
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% ggplot(aes(x = OTU, y = log2FC)) +
 #   geom_point(aes(colour = family))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
 #   filter(!log2FC_OTU %in% c(-Inf, Inf, NA, NaN)) %>% 
 #   ggplot(aes(x = OTU, y = log2FC_OTU)) +
@@ -1197,7 +1197,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU$family <- gsub("Burkholderiaceae", "Oxal
 #   facet_wrap(interaction(location, background) ~ compartment)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% 
 #   # filter(!log2FC_OTU %in% c(-Inf, Inf, NA, NaN)) %>% 
 #   ggplot(aes(x = OTU, y = WTbx1dif)) +
@@ -1205,7 +1205,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU$family <- gsub("Burkholderiaceae", "Oxal
 #   facet_wrap(interaction(location, background) ~ compartment)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
   # filter(!log2FC_OTU %in% c(-Inf, Inf, NA, NaN)) %>% 
   filter(!WTbx1dif_mean %in% "0") %>% 
@@ -1214,7 +1214,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU %>%
   facet_wrap(interaction(location, background) ~ compartment)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
 #   filter(family %in% "Sphingomonadaceae") %>% 
 #   filter(location %in% "Changins") %>% 
@@ -1227,7 +1227,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 #   theme(axis.text.x=element_text(angle = 90, hjust = 0, vjust = 0.5)) 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
 #   filter(location %in% "Changins") %>% 
 #   # filter(!log2FC_OTU %in% c(-Inf, Inf, NA, NaN)) %>% 
@@ -1236,7 +1236,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 #   facet_wrap(interaction(location, background) ~ compartment)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% 
 #   filter(location %in% "Changins") %>% 
 #   # filter(!log2FC_OTU %in% c(-Inf, Inf, NA, NaN)) %>% 
@@ -1245,13 +1245,13 @@ all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 #   facet_wrap(interaction(location, background) ~ compartment)
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% filter(log2FC %in% c(-Inf, Inf, NA, NaN))
 ```
 
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %<>% as.data.frame() %>% dplyr::mutate(WT = replace_na(WT, 0))
 # 
 # all_phy_psmelt_iso_BX_abundance_cum <- all_phy_psmelt_iso_BX_abundance %>% filter(compartment %in% "root") %>% dplyr::select(-rep) %>% group_by(OTU, Strain, location, background, compartment) %>% dplyr::summarize(Abundance_mean_Strain = mean(WT))
@@ -1278,15 +1278,15 @@ all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance <- read_rds("all_phy_psmelt_iso_BX_abundance.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 strains <- c("LMZ1", "LMX92", "LMX9231", "LMC1", "LMK1", "LME3", "LAC11", "LWO15", "LPD12", "LMX9", "LPD11", "LMX4", "LMX11", "LMY1", "LWO6", "LPB4.O", "LPD21", "LPD2", "LST26", "LPD22", "LPD32", "LPD121", "LPD34", "LPD33", "LMS1", "LMU1", "LST72", "LST61", "LST521", "LST82", "LST21", "LST22", "LST28", "LST18", "LST23", "LST52", "LST24", "LST15", "LST16", "LST14", "LST25", "LST20", "LST17", "LST27", "LST60", "LST19", "LST11", "LST12", "LST13", "LRH8.O", "LRC7.O", "LRH11", "LRH12", "LRH13", "LRC7.S", "LMQ1", "LSP13", "LMC3", "LWH4", "LBH3", "LMA1", "LWS12", "LBO6", "LBO4", "LWS2", "LWH9", "LBH2", "LWH8", "LBH7", "LDE1", "LBA112", "LBA18", "LBA111", "LBA1", "LWS1", "LWS15", "LMH1", "LBA71", "LMW1", "LMJ1", "LBA3", "LWS11", "LMA2", "LMO1", "LBA20", "LBA21", "LMM1", "LMP1", "LME1", "LME2", "LMX8", "LMX1", "LPE13", "LMF1", "LMG1", "LMG2", "LMV1", "LPA21", "LMX5", "LBS1", "LMD1", "LMD2", "LAR12", "LPA2", "LWH5", "LAR21", "LML1", "LWH1", "LWO8", "LWH3", "LBO1", "LWH7", "LWO2", "LMI12", "LMI21", "LWS13", "LMI1", "LMX2", "LMX6", "LMI22", "LMI18", "LWH10", "LMI14", "LMX7", "LMB2", "LMI11", "LMI1x", "LMI2x", "LWO5", "LWH12", "LWO13", "LWH13", "LWO12", "LMI51", "LBO3", "LMX3", "LMI15", "LMI13", "LMI111", "LMI112", "LMI81", "LMI32", "LMI62", "LMI522", "LMI17", "LMI121", "LWH11", "LWO14", "LBO11", "LMT1", "LMN1")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # scales::show_col(calc_pal()(12))
 # all_phy_psmelt_iso_BX_abundance %<>% na.omit()
 # 
@@ -1336,7 +1336,7 @@ these families are excluded in this plot:
 
 Fig. 2A BX Tolerance: BX dependent colonization
 630 x 600
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% 
 #   filter(Strain %in% strains) %>% 
 #   filter(compartment %in% c("rhizo", "root")) %>% 
@@ -1360,7 +1360,7 @@ Fig. 2A BX Tolerance: BX dependent colonization
 #        shape = "compartment")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance %>% 
 #   filter(Strain %in% strains) %>% 
 #   filter(compartment %in% c("rhizo", "root")) %>% 
@@ -1384,7 +1384,7 @@ Fig. 2A BX Tolerance: BX dependent colonization
 #        shape = "compartment")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # scales::show_col(calc_pal()(12))
 # all_phy_psmelt_iso_BX_abundance_meanOTU %<>% na.omit()
 
@@ -1423,7 +1423,7 @@ all_phy_psmelt_iso_BX_abundance_meanOTU_level_cols_family <- as.character(temp[,
 names(all_phy_psmelt_iso_BX_abundance_meanOTU_level_cols_family) <- temp[,1]
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance_meanOTU_meanOTU$family <- gsub("Burkholderiaceae", "Oxalobacteraceae", all_phy_psmelt_iso_BX_abundance_meanOTU$family)
 
 ASV_WTbx1dif <- all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
@@ -1452,7 +1452,7 @@ ASV_WTbx1dif <- all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 ASV_WTbx1dif
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # library(Cairo)
 # 
 # Cairo(file="ASV_WTbx1dif.png",
@@ -1467,7 +1467,7 @@ ASV_WTbx1dif
 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # all_phy_psmelt_iso_BX_abundance_meanOTU_meanOTU$family <- gsub("Burkholderiaceae", "Oxalobacteraceae", all_phy_psmelt_iso_BX_abundance_meanOTU$family)
 
 ASV_WTbx1dif_OTU <- all_phy_psmelt_iso_BX_abundance_meanOTU %>% 
@@ -1501,7 +1501,7 @@ ASV_WTbx1dif_OTU <- all_phy_psmelt_iso_BX_abundance_meanOTU %>%
 ASV_WTbx1dif_OTU
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 library(Cairo)
 # 
 # Cairo(file="ASV_WTbx1dif_OTU.png",
@@ -1518,7 +1518,7 @@ library(Cairo)
 
 # Select only well represented ASVs
 - only select ASVs which are found in min. 3 samples
-```{r}
+```{r, echo=F, message=F, warning=F}
 count_sample_ASV <- all_phy_psmelt_iso_BX %>% filter(!Abundance %in% 0) %>% dplyr::select(OTU, rep, background, compartment, genotype, location, family) %>% group_by(OTU, background, compartment, genotype, location, family)  %>% unique() %>% count()
 
 count_sample_ASV %>% filter(OTU %in% "ASV2230")
@@ -1527,7 +1527,7 @@ count_sample_ASV_well_represented <- count_sample_ASV %>% filter(location %in% "
 represented_OTU <- count_sample_ASV_well_represented$OTU %>% unique()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance$family <- gsub("Burkholderiaceae", "Oxalobacteraceae", all_phy_psmelt_iso_BX_abundance$family)
 
 ASV_WTbx1dif_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% represented_OTU) %>% 
@@ -1564,7 +1564,7 @@ ASV_WTbx1dif_OTU
 - only select ASVs which are found in all sequenced samples
 
 min. samples per treatment in dataset are 6 (soil, rhizo, root W22 WT Zurich and root WT W22 Ithaca), max are 12 (soil, rhizo, root bx1 W22 Zurich)
-```{r}
+```{r, echo=F, message=F, warning=F}
 nr_of_samples_per_treatment <- all_phy_psmelt_iso_BX %>%
   dplyr::select(rep, background, compartment, genotype, location) %>% 
   group_by(background, compartment, genotype, location)  %>% 
@@ -1584,7 +1584,7 @@ count_sample_ASV_in_all_samples <- count_sample_ASV %>% filter(location %in% "Ch
 ASV_in_all_samples <- count_sample_ASV_in_all_samples$OTU %>% unique()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance$family <- gsub("Burkholderiaceae", "Oxalobacteraceae", all_phy_psmelt_iso_BX_abundance$family)
 
 ASV_WTbx1dif_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% ASV_in_all_samples) %>% 
@@ -1620,7 +1620,7 @@ ASV_WTbx1dif_OTU
 
 
 ###best mapping ASVs
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_identity_strains <- all_phy_psmelt_iso %>% 
   filter(OTU %in% ASV_in_all_samples) %>% 
   filter(Strain %in% strains) %>% 
@@ -1641,7 +1641,7 @@ all_phy_psmelt_iso_BX_identity_strains_wide <- all_phy_psmelt_iso_BX_identity_st
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # *Bacillaceae*
 ## total strains
 all_phy_psmelt_iso_BX_identity_strains %>% filter(family %in% "Bacillaceae") %>% unique()
@@ -1930,11 +1930,11 @@ ASV20338 LAC11
 ASV474 LMC1 LMK1
 ASV2934 LMN1
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 #write_rds(all_phy_psmelt_iso_BX_abundance, "../Output/II_Field_soils/all_phy_psmelt_iso_BX_abundance.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ASV_WTbx1dif_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% selected_ASVs) %>% 
   filter(Strain %in% strains) %>% 
   filter(compartment %in% c("rhizo", "root")) %>% 
@@ -1965,7 +1965,7 @@ ASV_WTbx1dif_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% selecte
 ASV_WTbx1dif_OTU
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ASV_abundance_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% selected_ASVs) %>% 
   filter(Strain %in% strains) %>% 
   filter(compartment %in% c("rhizo", "root")) %>% 
@@ -1996,7 +1996,7 @@ ASV_abundance_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% select
 ASV_abundance_OTU
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance %<>% mutate(WTbx1dif_weigh_WT = WTbx1dif * WT)
 
 ASV_weighed_BX_abundance_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% selected_ASVs) %>% 
@@ -2029,7 +2029,7 @@ ASV_weighed_BX_abundance_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU 
 ASV_weighed_BX_abundance_OTU
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 ASV_log2FC_OTU <-  all_phy_psmelt_iso_BX_abundance %>% filter(OTU %in% selected_ASVs) %>% 
   filter(Strain %in% strains) %>% 
   filter(compartment %in% c("rhizo", "root")) %>% 
@@ -2062,7 +2062,7 @@ ASV_log2FC_OTU
 
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(OTU %in% selected_ASVs) %>%  
   filter(compartment %in% "root") %>% 
@@ -2078,7 +2078,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% c("LME3", "LMX9231", "LMZ1")) %>% 
   filter(compartment %in% "root") %>% 
@@ -2094,7 +2094,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% c("LMN1")) %>% 
   filter(compartment %in% "root") %>% 
@@ -2110,7 +2110,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% c("LAC11")) %>% 
   filter(compartment %in% "root") %>% 
@@ -2126,7 +2126,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% c("LMC1", "LMK1")) %>% 
   filter(compartment %in% "root") %>% 
@@ -2142,7 +2142,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% c("LML1")) %>% 
   filter(compartment %in% "root") %>% 
@@ -2161,15 +2161,15 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance %>% filter(compartment %in% c("rhizo", "root")) %>% filter(location %in% "Changins") %>% filter(family %in% c("Chitinophagaceae", "Deinococcaceae", "Moraxellaceae", "Nocardioidaceae", "Sphingobacteriaceae"))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 #write_rds(all_phy_psmelt_iso_BX_abundance_meanOTU, "../Output/II_Field_soils/all_phy_psmelt_iso_BX_abundance_meanOTU.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(!family %in% c("Chitinophagaceae", "Deinococcaceae", "Moraxellaceae",  "Nocardioidaceae", "Sphingobacteriaceae", "Planococcaceae")) %>% 
@@ -2186,7 +2186,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(!family %in% c("Chitinophagaceae", "Deinococcaceae", "Moraxellaceae",  "Nocardioidaceae", "Sphingobacteriaceae", "Planococcaceae")) %>% 
@@ -2204,7 +2204,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
   theme_bw()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(!family %in% c("Chitinophagaceae", "Deinococcaceae", "Moraxellaceae",  "Nocardioidaceae", "Sphingobacteriaceae", "Planococcaceae")) %>% 
@@ -2223,7 +2223,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 only for well represented OTUs
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(OTU %in% represented_OTU) %>% 
   filter(Strain %in% strains) %>% 
   filter(compartment %in% c("root")) %>% 
@@ -2295,7 +2295,7 @@ stat.test %>% knitr::kable()
 write.csv(stat.test, "../Output/II_Field_soils/stats_mapped_ASVs.csv")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(OTU %in% represented_OTU) %>% 
   filter(Strain %in% strains) %>% 
   dplyr::select(-Strain) %>% 
@@ -2322,7 +2322,7 @@ all_phy_psmelt_iso_BX %>% filter(OTU %in% represented_OTU) %>%
 
 
 Bacillaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Bacillaceae")) %>% 
@@ -2342,7 +2342,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Burkholderiaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Burkholderiaceae")) %>% 
@@ -2363,7 +2363,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 
 
 Enterobacteriaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Enterobacteriaceae")) %>% 
@@ -2383,7 +2383,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Pseudomonadaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Pseudomonadaceae")) %>% 
@@ -2403,7 +2403,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Streptomycetaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Streptomycetaceae")) %>% 
@@ -2423,7 +2423,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Spingomonadaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Sphingomonadaceae")) %>% 
@@ -2443,7 +2443,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Rhizobiaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Rhizobiaceae")) %>% 
@@ -2463,7 +2463,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Xanthomonadaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Xanthomonadaceae")) %>% 
@@ -2483,7 +2483,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Microbacteriaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Microbacteriaceae")) %>% 
@@ -2503,7 +2503,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 ```
 
 Micrococcaceae
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%  
   filter(Strain %in% strains) %>% 
   filter(family %in% c("Micrococcaceae")) %>% 
@@ -2524,7 +2524,7 @@ all_phy_psmelt_iso_BX %>% filter(location %in% "Changins") %>%
 
 # Cumulative field abundance isolates
 sum all relative abundances in total of all represented ASVs 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_BX_abundance_meanOTU_mapped <- all_phy_psmelt_iso_BX_abundance_meanOTU %>% as.data.frame() %>% dplyr::select(-OTU, -Strain) %>% unique() 
 
 all_phy_psmelt_mean <- all_phy_psmelt %>% 
@@ -2557,7 +2557,7 @@ total_abundance_map_ASV %>% knitr::kable()
 total_abundance_map_ASV_family %>% knitr::kable()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # count_sample_ASV <- all_phy_psmelt_iso_BX %>% filter(!Abundance %in% 0) %>% dplyr::select(OTU, rep, background, compartment, genotype, location, family) %>% group_by(OTU, background, compartment, genotype, location, family)  %>% unique() %>% count()
 # 
 # count_sample_ASV %>% filter(OTU %in% "ASV2230")
@@ -2567,12 +2567,12 @@ total_abundance_map_ASV_family %>% knitr::kable()
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_iso_BX_abundance %>% dplyr::select(-Strain) %>% unique()
 ```
 
 # Ranks of the isolates in the microbiome
-```{r}
+```{r, echo=F, message=F, warning=F}
 all_phy_psmelt_rank <- all_phy_psmelt %>% dplyr::select(OTU, family, background, location, compartment, genotype, Abundance) %>%  mutate(background_location_compartment_genotype = interaction(background, location, compartment, genotype, sep = "_")) %>% filter(!genotype %in% c("bx2", "bx6"))
 
 all_phy_psmelt_rank_wide <- all_phy_psmelt_rank %>% 

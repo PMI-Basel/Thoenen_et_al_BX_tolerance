@@ -24,9 +24,6 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
-## Set settings
-set working directory to source file location
-
 ```{r, warning=FALSE, include=FALSE}
 # install.packages("MESS")
 # #Plotly to annotate plots and explore them
@@ -114,10 +111,9 @@ symnum.args <- list(cutpoints = c(0, 0.05, 1), symbols = c("*", ""))
 ```
 
 # I) MAIZE ROOT BACTERIA
-# Metadata
-Load metadata
-- Strain_Data_raw: Metadata Strains with Plate Layout (indicating which strain is in which well)
-- database: All information about the strains (Taxonomy, AMPO Formation, isolation etc.)
+
+**Load metadata**: Metadata strains with plate layout (indicating which strain is in which well) and database with taxonomic information about the strains. 
+
 ```{r, include=FALSE}
 Strain_Data_raw <- read_excel("Input/DESIGN_MBOA_Pheno_60strains_RUN1_RUN2_RUN3_RUN4.xlsx", sheet = 4)
 
@@ -142,7 +138,8 @@ Strain_Data %<>%
 Strain_Data$Well_Plate <- interaction(Strain_Data$Well, Strain_Data$Plate, sep = "_")
 ```
 
-# Data plates
+**Load growth data**: Growth data from the plates. 
+
 ```{r, include=FALSE}
 results1 <- data_frame()
 
@@ -512,8 +509,7 @@ results7 <- bind_rows(results7, tmp)
 }
 ```
 
-# Formatting 
-Data from the different runs are merged, then the time intervals between the measurements are calculated and last then the results are joined with the strain metadata of the strains. Next the density increase is calculated by subtracting the first measurement (represents inoculation density) from all subsequent measurements. This result data file is saved as raw results. 
+**Formatting**:Data from the different runs are merged, then the time intervals between the measurements are calculated and last then the results are joined with the strain metadata of the strains. Next the density increase is calculated by subtracting the first measurement (represents inoculation density) from all subsequent measurements. This result data file is saved as raw results. 
 
 ```{r, include=FALSE}
 results <- rbind(results1, results2, results3, results4, results5, results6, results7)
@@ -546,7 +542,7 @@ results %<>%
 results_raw <- results
 ```
 
-# Growth curves
+## Growth curves
 First the density increase in the medium control plate is plotted to check that there was no general contamination detected in the experiment.
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
@@ -620,14 +616,14 @@ fIG4.curve_LPD2_LRH8.O
 # ggsave(plot = fIG4.curve_LPD2_LRH8.O,  filename = "fIG4.curve_LPD2_LRH8.O.svg", width = 4.4, height = 6, dpi = 300, scale = 1, units = "cm")
 ```
 
-# Remove strains from the analysis
-For some strains bad growth was detected in the growth curves. Here some strains are removed due to bad growth (LAR4, LPA11, LPE13 - LPE1.3.1), possible contamination (LMX8), unclear taxonomy (LMR1) and antibiotic tolerant strains (LPB4.R and LRH.8) are removed from the analysis.
-Also the data for the screen in minimal medium are removed from the analysis since this was not the interest of this screen. 
+**Remove strains from the analysis**: For some strains bad growth was detected in the growth curve which are removed due to bad growth, possible contamination, unclear taxonomy and antibiotic tolerant strains.
 
 ```{r, include=FALSE}
+# remove strains
 results %<>% filter(!Strain %in% c("LAR4", "LPE1.3.1", "LPA11", "LMX8", "LPB4.R", "LRH8.S", "LMR1", "LMU1", "LMG1", "LMF1", "LMI14", "LST17", "LAR4"))
 
-results %<>% filter(!Media %in% c("MM"))
+# remove minimal media
+results %<>% filter(!Media %in% c("MM")) 
 ```
 
 ```{r, include=FALSE}
@@ -635,40 +631,8 @@ dir.create("Output", showWarnings = F)
 #write_rds(results, paste0("Output/results.rds"))
 ```
 
-# Density increase
-The maximal density increase maxDI is calculated from the maximal OD600 value of a strain in a given concentration of the compound (highest OD value reached over growth curve). 
-
-```{r, include=FALSE}
-results_maxDI <- results %>% dplyr::group_by(Strain, Replicate, Run, Treat, Chem, Conc, Media, Genus, Family) %>% dplyr::summarise(Density_increase_max = max(Density_increase)) 
-
-#write_rds(results_maxDI, paste0("Output/results_maxDI_60strains_MBOA_BOA_AMPO_DMG.rds"))
-```
-
-### Density increase TSB medium
-```{r, echo=FALSE, error = FALSE, warning=FALSE, message = FALSE}
-results_maxDI %>%  
-  mutate(Conc = factor(Conc, levels = c("0", "250", "500", "625", "1250", "2500", "5000"))) %>%   
-  filter(Conc %in% c("0", "250", "500", "625", "1250", "2500", "5000")) %>%   
-  filter(Media %in% "TSB") %>% 
-  filter(Chem %in% c("DMSO", "MBOA")) %>% 
-  ggplot(aes(x= as.factor(Conc), y= Density_increase_max)) +
-  # ylim(0, 1.5) +
-  geom_boxplot(aes(colour = Family), show.legend = FALSE) +
-  geom_jitter(aes(colour = Family, shape = Run), width = 0.1)+
-  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "0", label.y = 1.5, symnum.args = symnum.args, hide.ns = TRUE) +
-  facet_wrap(~Strain, scales = "fixed") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0))+
-  labs(y = "max. Density increase",
-       x = "", 
-       title = "growth in TSB medium",
-       shape = "Run")
-```
-
-# Calculate AUC
+## Calculate area under the curve (AUC)
 To quantify the total bacterial growth over time, we calculate the total area under the curve. This is done with the function "auc()" For comparison between treatments, the total AUC (AUC_raw) is normalized with the AUC of the strain grown in the control treatment (no chemicals added, just normal growth media with DMSO). The AUC_norm is used for all further analysis, plotting and calculations. 
-
-*AUC MBOA*
 
 ```{r, include=FALSE, warning=FALSE}
 results %<>% dplyr::select(-Well_Plate, -Plate) %>% unique()
@@ -696,8 +660,6 @@ results_AUC_MBOA <- results %>%
 ## Save table with AUC
 #write_rds(results_AUC_MBOA,paste0("Output/results_AUC_MBOA.rds"))
 ```
-
-*AUC AMPO*
 
 ```{r, , include=FALSE, warning=FALSE}
 # results %<>% dplyr::select(-Well_Plate, -Plate) %>% unique()
@@ -728,8 +690,6 @@ results_AUC_AMPO <- results %>%
 #write_rds(results_AUC_AMPO,paste0("Output/results_AUC_AMPO.rds"))
 ```
 
-*AUC BOA*
-
 ```{r, include=FALSE, warning=FALSE}
 results_AUC_BOA <- results %>% 
   filter(Media %in% "TSB") %>% 
@@ -757,8 +717,6 @@ results_AUC_BOA <- results %>%
 ## Save table with AUC
 #write_rds(results_AUC_BOA, paste0("Output/results_AUC_BOA.rds"))
 ```
-
-*AUC DMG*
 
 ```{r, include=FALSE, warning=FALSE}
 # results %<>% dplyr::select(-Well_Plate, -Plate) %>% unique()
@@ -791,8 +749,6 @@ results_AUC_DMG <- results %>%
 #write_rds(results_AUC_AMPO,paste0("Output/results_AUC_DMG.rds"))
 ```
 
-*AUC APO*
-
 ```{r, include=FALSE, warning=FALSE}
 results_AUC_APO <- results %>% 
   filter(Media %in% "TSB") %>% 
@@ -820,8 +776,6 @@ results_AUC_APO <- results %>%
 ## Save table with AUC
 #write_rds(results_AUC_APO, paste0("Output/results_AUC_APO.rds"))
 ```
-
-Combine all AUC results in one dataset
 
 ```{r, include=FALSE}
 results_AUC_MBOA$Chem <- "MBOA"
@@ -874,7 +828,7 @@ sorted_Family <- sorted$Family
 #write_rds(results_AUC_all, "Output/results_AUC_all.rds")
 ```
 
-# Plotting AUC 
+## Plotting AUC 
 *Figures for supplement*
 
 All AUC MBOA
@@ -1073,10 +1027,9 @@ AUC_all_DMG
 # ggsave(plot = AUC_all_DMG,  filename = "AUC_all_DMG.svg", width = 25, height = 15, dpi = 300, scale = 1, units = "cm")
 ```
 
-# Compare concentrations and chemicals
+## Compare concentrations and chemicals
 
-### MBOA and AMPO at 50 μM
-Compare low MBOA concentrations with high AMPO concentrations [50 uM]
+**MBOA and AMPO at 50 μM**: Compare low MBOA concentrations with high AMPO concentrations [50 uM]
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 fIGsupp.MBOA50 <- results_AUC_all %>%
@@ -1140,10 +1093,7 @@ fIGsupp.AMPO50
 ```
 
 
-To investigate how many strains are susceptible to low concentrations of MBOA and AMPO (50 μM). 
-We check for the number of strains with AUC_norm < 0.8 and statistically test (t.test) which bacteria grow significantly less in the treatment compared to the control. 
-
-MBOA
+To investigate how many strains are susceptible to low concentrations of MBOA and AMPO (50 μM). We check for the number of strains with AUC_norm < 0.8 and statistically test (t.test) which bacteria grow significantly less in the treatment compared to the control. 
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_50")) %>% 
@@ -1172,12 +1122,10 @@ sig_MBOA_growth_AUC %>%
 # 2 strains
 ```
 
-AMPO
-
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
-results_AUC_all %>% filter(Chem_Conc %in% c("AMPO_50")) %>% filter(Run %in% "R1") %>% 
-  filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% unique() %>% 
-  dplyr::select(Strain, AUC_norm, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean = mean(AUC_norm)) %>% filter(AUC_norm_mean < 0.8) 
+# results_AUC_all %>% filter(Chem_Conc %in% c("AMPO_50")) %>% filter(Run %in% "R1") %>% 
+#   filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% unique() %>% 
+#   dplyr::select(Strain, AUC_norm, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean = mean(AUC_norm)) %>% filter(AUC_norm_mean < 0.8) 
 
 sig_AMPO_growth_AUC <- 
   results_AUC_all %>% 
@@ -1224,8 +1172,6 @@ AUC_all_MBOA_AMPO_50
 # # 
 # ggsave(plot = AUC_all_MBOA_AMPO_50,  filename = "AUC_all_MBOA_AMPO_50.svg", width = 25, height = 15, dpi = 300, scale = 1, units = "cm")
 ```
-
-xy Plot AMPO ~ MBOA 50 uM
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 xyAMPO_MBOA_50 <- results_AUC_all %>%
@@ -1328,12 +1274,12 @@ We check for the number of strains with AUC_norm < 0.75 and statistically test (
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 # strains in MBOA_50 AUC_norm < 0.75 
-results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_2500")) %>% 
-  filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% 
-  dplyr::summarize(AUC_norm_mean =mean(AUC_norm)) %>% 
-  filter(AUC_norm_mean < 0.75) %>% 
-  dplyr::select(Strain) %>% 
-  unique()
+# results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_2500")) %>% 
+#   filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% 
+#   dplyr::summarize(AUC_norm_mean =mean(AUC_norm)) %>% 
+#   filter(AUC_norm_mean < 0.75) %>% 
+#   dplyr::select(Strain) %>% 
+#   unique()
 
 sig_MBOA_growth_AUC <- results_AUC_all %>% 
   filter(Chem_Conc %in% c("MBOA_0", "MBOA_2500")) %>% 
@@ -1365,11 +1311,9 @@ sig_BOA_growth_AUC <- results_AUC_all %>% filter(Chem_Conc %in% c("BOA_0", "BOA_
 
 BOA_2500_tolerant_AUC <- sig_BOA_growth_AUC %>% filter(p.value.signif %in% "ns") %>% dplyr::select(Strain) %>% unique() 
 
-BOA_2500_tolerant_AUC %>% knitr::kable(caption = "BOA 2500 μM")
+# BOA_2500_tolerant_AUC %>% knitr::kable(caption = "BOA 2500 μM")
 # 11 strains
 ```
-
-`
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 fIGsupp.BOA1250 <- results_AUC_all %>%
@@ -1404,7 +1348,7 @@ fIGsupp.BOA1250
 # ggsave(plot = fIGsupp.BOA1250,  filename = "fIGsupp.BOA1250.svg", width = 8.8, height = 6, dpi = 300, scale = 3, units = "cm")
 ```
 
-# AMPO and APO [50 uM]
+### AMPO and APO [50 uM]
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 fIGsupp.AMPO50 <- results_AUC_all %>%
@@ -1478,7 +1422,7 @@ fIGsupp.APO50
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 # strains in MBOA_50 AUC_norm < 0.75 
-results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_2500")) %>% filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean =mean(AUC_norm)) %>% filter(AUC_norm_mean < 0.80) %>% dplyr::select(Strain) %>% unique()
+# results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_2500")) %>% filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean =mean(AUC_norm)) %>% filter(AUC_norm_mean < 0.80) %>% dplyr::select(Strain) %>% unique()
 
 sig_APO_growth_AUC <- results_AUC_all %>% filter(Chem_Conc %in% c("MBOA_0", "APO_50")) %>% 
   filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc, Replicate, Run) %>% unique() %>% 
@@ -1504,12 +1448,12 @@ sig_BOA_growth_AUC <- results_AUC_all %>% filter(Chem_Conc %in% c("BOA_0", "BOA_
 BOA_2500_tolerant_AUC <- sig_BOA_growth_AUC %>% filter(p.value.signif %in% "ns") %>% dplyr::select(Strain) %>% unique()
 # 11 strains
 
- results_AUC_all %>% filter(Chem_Conc %in% c("AMPO_50")) %>% filter(Run %in% "R1") %>% 
-  filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% unique() %>% 
-  dplyr::select(Strain, AUC_norm, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean = mean(AUC_norm)) %>% filter(Strain %in% sig_AMPO_strains$Strain) %>% filter(AUC_norm_mean < 1) 
+ # results_AUC_all %>% filter(Chem_Conc %in% c("AMPO_50")) %>% filter(Run %in% "R1") %>% 
+ #  filter(Strain != "NBC") %>% group_by(Strain, Chem_Conc) %>% unique() %>% 
+ #  dplyr::select(Strain, AUC_norm, Chem_Conc) %>% dplyr::summarize(AUC_norm_mean = mean(AUC_norm)) %>% filter(Strain %in% sig_AMPO_strains$Strain) %>% filter(AUC_norm_mean < 1) 
 ```
 
-# Tolerance index 
+## Tolerance index 
 To compare the tolerance among different bacterial strains, we use the tolerance index (TI). This tolerance index is calculated from the area under the curve of the AUC of each strain in the different concentrations of the compounds, as further normalization the normalized tolerance index is calculated from AUC_norm instead of AUC. Accordingly, a strain with TI_norm = 1 is completely tolerant to the compound in each concentration (not inhibited by the compound). Tolerance index is calculated for each compound separately using results_AUC from the respective compound. 
 
 ```{r, warning=FALSE, include=FALSE}
@@ -1660,8 +1604,7 @@ TI_MBOA_low
 # ggsave(plot = TI_MBOA_low,  filename = "TI_MBOA_low.svg", width = 8.8, height = 6, dpi = 300, scale = 1, units = "cm")
 ```
 
-correlation TI with TI low
-```{r}
+```{r, warning=FALSE, include=FALSE, echo=F}
 AUC_tolind_MBOA_low_cor <- left_join(AUC_tolind_MBOA_low %>% dplyr::rename(TI_norm_low = TI_norm) %>% 
                                        dplyr::select(Strain, Replicate, Run, TI_norm_low), 
                                      AUC_tolind_MBOA %>% dplyr::select(Strain, Replicate, Run, Family, TI_norm), 
@@ -1746,8 +1689,7 @@ TI_MBOA_2conc
 # ggsave(plot = TI_MBOA_2conc,  filename = "TI_MBOA_2conc.svg", width = 8.8, height = 6, dpi = 300, scale = 1, units = "cm")
 ```
 
-correlation TI with TI low
-```{r}
+```{r, warning=FALSE, include=FALSE, echo=F}
 AUC_tolind_MBOA_2conc_cor <- left_join(AUC_tolind_MBOA_2_conc %>% dplyr::rename(TI_norm_2conc = TI_norm) %>% 
                                        dplyr::select(Strain, Replicate, Run, TI_norm_2conc), 
                                      AUC_tolind_MBOA %>% dplyr::select(Strain, Replicate, Run, Family, TI_norm), 
@@ -1775,8 +1717,6 @@ TI_2conc_cor
 # # 
 # ggsave(plot = TI_2conc_cor,  filename = "TI_2conc_cor.svg", width = 9, height = 9, dpi = 300, scale = 1, units = "cm")
 ```
-
-
 
 *AUC MBOA 625 μM*
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
@@ -2010,7 +1950,7 @@ TI_DMG_ALL
 ```
 
 correlation TI with TI low
-```{r}
+```{r, warning=FALSE, include=FALSE, echo=F}
 AUC_tolind_AUC_DMG_cor <- left_join(AUC_tolind_DMG %>% 
                                     dplyr::select(Strain, Replicate, Run, TI_norm), 
                                     results_AUC_all %>% 
@@ -2102,8 +2042,7 @@ TI_APO_ALL
 # ggsave(plot = TI_APO_ALL,  filename = "TI_APO_ALL.svg", width = 8.8, height = 6, dpi = 300, scale = 1, units = "cm")
 ```
 
-# p-value heatmaps
-*p-value MBOA*
+## p-value heatmaps
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_MBOA_mean <- AUC_tolind_MBOA %>% filter(TI_norm < 1.3) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
@@ -2165,9 +2104,6 @@ grid.draw(MBOA_p_HM_bar_bin)
 
 ```
 
-
-*p-value BOA*
-
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_BOA_mean <- AUC_tolind_BOA %>% filter(TI_norm < 1.3) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
 AUC_tolind_BOA_sorted <- left_join(AUC_tolind_BOA %>% filter(TI_norm < 1.3), AUC_tolind_BOA_mean, by = "Strain") %>% as.data.frame() %>% dplyr::arrange(desc(TI_norm_mean))
@@ -2228,8 +2164,6 @@ grid.draw(BOA_p_HM_bar_bin)
 
 ```
 
-
-*p-value AMPO*
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_AMPO_mean <- AUC_tolind_AMPO %>% filter(TI_norm < 1.3) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
 AUC_tolind_AMPO_sorted <- left_join(AUC_tolind_AMPO %>% filter(TI_norm < 1.3), AUC_tolind_AMPO_mean, by = "Strain") %>% as.data.frame() %>% dplyr::arrange(desc(TI_norm_mean))
@@ -2290,9 +2224,6 @@ grid.draw(AMPO_p_HM_bar_bin)
 
 ```
 
-
-*p-value DIMBOA-Glc*
-
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_DMG_mean <- AUC_tolind_DMG %>% filter(TI_norm < 2) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
 AUC_tolind_DMG_sorted <- left_join(AUC_tolind_DMG %>% filter(TI_norm < 2), AUC_tolind_DMG_mean, by = "Strain") %>% as.data.frame() %>% dplyr::arrange(desc(TI_norm_mean))
@@ -2352,7 +2283,6 @@ grid.draw(DMG_p_HM_bar_bin)
 # dev.off()
 
 ```
-
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_DMG_mean <- AUC_tolind_DMG %>% filter(TI_norm < 1.3) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
@@ -2451,7 +2381,7 @@ grid.draw(APO_p_HM_bar_bin)
 
 ```
 
-# Correlation tolerance index 
+## Correlation tolerance index 
 To investigate if the tolerance of maize root bacteria to different benzoxazinonids and aminophenoxazinones depend on each other, we correlated the TIs of all bacteria in the different chemicals with each other. 
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
@@ -2644,7 +2574,7 @@ aov(TI_norm_MBOA ~ TI_norm_DMG, data = AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor %>% 
   filter(TI_norm_MBOA < 2)) %>% summary()
 ``` 
 
-# Tolerance groups
+## Tolerance groups
 ```{r, include=FALSE}
 #AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor <- read_rds("Output/AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor.rds")
 ```
@@ -2725,7 +2655,7 @@ colnames(Compound_p.value) <- c("Compound", "p.value")
 Compound_p.value %>% knitr::kable()
 ```
 
-# Effect of gram on tolerance 
+## Effect of gram on tolerance 
 ```{r,message=FALSE, echo=FALSE}
 database <- read_excel("Input/__Database_MRB_isolates_sequences.xlsx")
 ```
@@ -2902,6 +2832,8 @@ aov(TI_norm_DMG ~ gram, data = AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor_gram %>% fil
 
 # II) ATSPHERE BACTERIA
 
+**Load metadata**: Metadata strains with plate layout (indicating which strain is in which well) and database with taxonomic information about the strains. 
+
 ```{r, include=FALSE}
 Strain_Data_raw <- read_excel("Input/Metadata_60_strains_AtSphere_screen.xlsx", sheet = "metadata_Run.1")  %>% as.data.frame()
 Strain_Data_raw_2 <- read_excel("Input/Metadata_60_strains_AtSphere_screen.xlsx", sheet = "metadata_Run2") %>% as.data.frame()
@@ -2916,7 +2848,8 @@ Strain_Data_2 <- left_join(Strain_Data_raw_2, database, by = "Strain") %>%
   mutate(Well_Plate = interaction(Well, Plate, sep = "_"))
 ```
 
-# Data plates
+**Load growth data**: Growth data from the plates. 
+
 ```{r, warning=FALSE, include=FALSE}
 results1 <- data_frame()
 
@@ -3066,7 +2999,7 @@ results_raw <- results
 #write_rds(results, paste0("Output/results_AtSphere_MBOA_screen.rds"))
 ```
 
-# Growth curves
+## Growth curves
 First the density increase in the medium control plate is plotted to check that there was no general contamination detected in the experiment.
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, error=FALSE, fig.dim = c(6, 5)}
@@ -3125,7 +3058,7 @@ Some strains did not grew and were therefore excluded from the analysis. In both
 results %<>% filter(!Strain %in% c("Root1294", "Root420", "Root482", "Root559", "Root630", "Root318D1", "Root166"))
 ```
 
-# Calculate AUC
+## Calculate area under the curve
 To quantify the total bacterial growth over time, we calculate the total area under the curve. This is done with the function "auc()" For comparison between treatments, the total AUC (AUC_raw) is normalized with the AUC of the strain grown in the control treatment (no chemicals added, just normal growth media with DMSO). The AUC_norm is used for all further analysis, plotting and calculations. 
 
 ```{r, warning=FALSE, include=FALSE}
@@ -3222,7 +3155,7 @@ sorted <- results_AUC_all_AtSphere %>% dplyr::arrange(Family) %>% dplyr::select(
 sorted_Family <- sorted$Family
 ```
 
-# Plotting AUC 
+## Plotting AUC 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(10, 10)}
 AUC_all_MBOA_AtSphere <- results_AUC_all_AtSphere %>% 
   filter(Chem %in% "MBOA") %>% 
@@ -3247,7 +3180,7 @@ AUC_all_MBOA_AtSphere
 # ggsave(plot = AUC_all_MBOA_AtSphere,  filename = "AUC_all_MBOA_AtSphere.svg", width = 25, height = 18, dpi = 300, scale = 1, units = "cm")
 ```
 
-# Tolerance index 
+## Tolerance index 
 
 To compare the tolerance among different bacterial strains, we use the tolerance index. The tolerance index is calculated from the area under the curve of the AUC of each strain in the different concentrations of the compounds, as further normalization the tolerance index is calculated from AUC_norm instead of AUC. Accordingly, a strain with TI_norm = 1 is completely tolerant to the compound in each concentration (not inhibited by the compound). Tolerance index is calculated for each compound separately using results_AUC from the respective compound. 
 
@@ -3307,8 +3240,7 @@ TI_MBOA_ALL_AtSphere
 aov(TI_norm ~ Family, data = AUC_tolind_MBOA_AtSphere) %>% summary()
 ```
 
-# p-value heatmaps
-*p-value MBOA*
+## p-value heatmaps
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, fig.dim = c(6, 5)}
 AUC_tolind_MBOA_AtSphere_mean <- AUC_tolind_MBOA_AtSphere %>% filter(TI_norm < 1.3) %>%  group_by(Strain) %>% dplyr::summarise(TI_norm_mean = mean(TI_norm))
@@ -3370,8 +3302,7 @@ grid.draw(MBOA_AtSphere_p_HM_bar_bin)
 
 ```
 
-
-# Effect of gram on tolerance 
+## Effect of gram on tolerance 
 ```{r, include=FALSE}
 AUC_tolind_MBOA_AtSphere_tax <- left_join(AUC_tolind_MBOA_AtSphere, database %>% dplyr::select(Strain, gram), by = "Strain") 
 ```
@@ -3443,7 +3374,7 @@ Fig.supp.MBOAgram_AtSphere
 # ggsave(plot = Fig.supp.MBOAgram_AtSphere,  filename = "Fig.supp.MBOAgram_AtSphere.svg", width = 6.6, height = 12, dpi = 300, scale = 1, units = "cm")
 ```
 
-# Tolerance groups
+## Tolerance groups
 ```{r, include=FALSE}
 BX_tolerance <- AUC_tolind_MBOA_AtSphere_tax %>% as.data.frame() %>%
   filter(TI_norm < 1.2) %>%
@@ -3481,12 +3412,11 @@ colnames(Compound_p.value) <- c("Compound", "p.value")
 Compound_p.value %>% knitr::kable()
 ```
 
-# Correlation TI norm MBOA MRB ~ AtSphere families
+## Correlation TI norm MBOA MRB ~ AtSphere families
 ```{r, include=FALSE}
 #AUC_tolind_MBOA_cor <- read_rds("Output/AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor.rds") 
 
 AUC_tolind_MBOA_cor <- AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor %>% dplyr::select(-TI_norm_AMPO, -TI_norm_APO, -TI_norm_BOA, -TI_norm_DMG)
-
 ```
 
 ```{r, include=FALSE}
@@ -3559,7 +3489,7 @@ Fig.TIcor_MRB_AtSphere_mean <- AUC_tolind_MBOA_AtSphere_MRB_AtSphere_mean %>% na
 Fig.TIcor_MRB_AtSphere_mean
 ```
 
-# Compare families MRB ~ AtSphere
+## Compare families MRB ~ AtSphere
 
 ```{r, include=FALSE}
 #AUC_tolind_MBOA_AtSphere_cor <- read_rds("Output/AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor.rds") 
@@ -3696,7 +3626,7 @@ BX_abundace_L2FC
 
 ```
 
-# Correlation with tolerance data
+## Correlation with tolerance data
 
 ```{r, include=FALSE}
 #AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor <- read_rds("Output/AUC_tolind_MBOA_AMPO_BOA_APO_DMG_cor.rds")
@@ -4014,7 +3944,7 @@ DIMBOA-Glc
 ```
 
 
-# Corplot log2FC field
+## Corplot log2FC field
 
 ```{r, message=FALSE, echo=FALSE, error=FALSE, warning = FALSE, include = FALSE}
 # DIMBOA-Glc

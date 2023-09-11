@@ -313,7 +313,7 @@ sequences_mapped <- iso.tab$Strain %>% unique()
 iso.tab$Strain %>% unique() %>% length()
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 #read fasta file
 sequences_tree <- seqinr::read.fasta(file = "../Input/III_Changins/220623_all_MRB_isolated_maizeB73_sequences_noprimername_revcom.fas",
   seqtype = c("DNA"), as.string = FALSE, forceDNAtolower = FALSE,
@@ -330,7 +330,7 @@ not_mapped <- setdiff(all_sequences, sequences_mapped)
 not_mapped
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 similarities <- read.csv("../Input/III_Changins/similarities.csv")
 
 similarities_not_mapped <- similarities %>% dplyr::select(X, not_mapped) 
@@ -387,7 +387,7 @@ criteria:
 1. Similarity
 2. Abundance
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 selected_OTU <- c("OTU104", "OTU122","OTU143","OTU14","OTU153","OTU78","OTU5","OTU243","OTU1240","OTU717","OTU331","OTU1009","OTU118","OTU168","OTU3064","OTU1707","OTU15","OTU62","OTU223", "OTU629", "OTU12", "OTU158", "OTU564")
 
 selected_OTU <- gsub("OTU", "bOTU", selected_OTU)
@@ -522,7 +522,7 @@ iso_abundance_rank <- left_join(iso_abundance_rank, bTAX, by = c("OTU" = "OTU_ID
 # format dataset to plot with ggplot
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # iso_abundance_single_data %>% dplyr::arrange(family) %>% dplyr::select(Strain, family) %>% unique()
   
 iso_abundance_rank %<>% mutate(family = case_when(Strain %in% c("LMC1", "LMK1") ~ "Erwiniaceae", !Strain %in% c("LMC1", "LMK1") ~ family))
@@ -569,7 +569,7 @@ iso_abundance_rank_level_cols_family <- as.character(temp[,2])
 names(iso_abundance_rank_level_cols_family) <- temp[,1]
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 rank_mapped_OTUs <- readr::read_rds("../Input/III_Changins/iso_abundance_rank.rds") %>% filter(compartment %in% "root") %>%  dplyr::select(Strain, OTU, family, Rank_WT) %>% unique() %>% dplyr::arrange(Rank_WT)
 
 dir.create("../Output/III_Changins", recursive = T, showWarnings = F)
@@ -578,7 +578,7 @@ write.csv(rank_mapped_OTUs, "../Output/III_Changins/rank_mapped_OTUs_root.csv")
 
 
 # Plot abundance isolates on WT and bx1 roots
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_rank %>% 
   mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
   dplyr::select(-Strain) %>%
@@ -594,7 +594,7 @@ iso_abundance_rank %>%
   labs(y = "WT-bx1 difference abundance [%]", x = "") 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 root_WT_abundance <- bDAT_field_norm[, Rootsamples_WT ]
 root_bx_abundance <- bDAT_field_norm[, Rootsamples_bx ]
 
@@ -617,7 +617,7 @@ root_bx_abundance %<>% mutate(OTU_replicate = interaction(OTU, replicate))
 root_bx_abundance %<>% mutate(compartment = "root")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 Rhizo_WT_abundance <- bDAT_field_norm[, Rhizosamples_WT ]
 Rhizo_bx_abundance <- bDAT_field_norm[, Rhizosamples_bx ]
 
@@ -641,7 +641,7 @@ Rhizo_bx_abundance %<>% mutate(compartment = "rhizo")
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data_long <- rbind(root_WT_abundance %>% dplyr::rename(Abundance = Abundance_WT) %>% mutate(genotype = "WT") %>% mutate(compartment = "root"),
                                         root_bx_abundance %>% dplyr::rename(Abundance = Abundance_bx1) %>% mutate(genotype = "bx1") %>% mutate(compartment = "root"), 
                                         Rhizo_WT_abundance %>% dplyr::rename(Abundance = Abundance_WT) %>% mutate(genotype = "WT") %>% mutate(compartment = "rhizo"), 
@@ -660,7 +660,7 @@ iso_abundance_single_data_long_stats <- iso_abundance_single_data_long %>% group
 stats t.test with
 iso_abundance_single_data_long
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_root_single_data <- left_join(root_WT_abundance %>% dplyr::select(-OTU, -replicate, -compartment), root_bx_abundance %>% dplyr::select(-OTU, -replicate, -compartment), by = "OTU_replicate") %>%
   separate(OTU_replicate, c("OTU", "replicate")) %>%
   mutate(WT_bx_dif = Abundance_WT-Abundance_bx1)
@@ -683,13 +683,13 @@ iso_abundance_single_data %<>% mutate(Abundance_WT = replace_na(Abundance_WT, 0)
 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 OTU_sig <- iso_abundance_single_data %>% 
   dplyr::select(p.value.signif, OTU) %>% unique()
 ```
 
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 # iso_abundance_single_data %>% dplyr::arrange(family) %>% dplyr::select(Strain, family) %>% unique()
   
 iso_abundance_single_data %<>% mutate(family = case_when(Strain %in% c("LMC1", "LMK1") ~ "Erwiniaceae", !Strain %in% c("LMC1", "LMK1") ~ family))
@@ -738,7 +738,7 @@ names(iso_abundance_single_data_level_cols_family) <- temp[,1]
 
 # Plot abundance isolates single value
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data %>% 
   mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
   filter(compartment %in% c("root", "rhizo")) %>% 
@@ -766,7 +766,7 @@ iso_abundance_single_data %>%
   labs(y = "WT-bx1 difference abundance [%]", x = "") 
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data %>% 
   mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% 
   filter(compartment %in% c("root", "rhizo")) %>% 
@@ -795,7 +795,7 @@ iso_abundance_single_data %>%
 ```
 
 # Plotting single OTUs on WT and bx1 roots and rhizosphere
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data_genotype <- iso_abundance_single_data %>% dplyr::select(OTU, Strain, Abundance_WT, Abundance_bx1, family, compartment, replicate) %>% pivot_longer(
    cols = starts_with("Abundance"),
    names_to = "genotype",
@@ -804,7 +804,7 @@ iso_abundance_single_data_genotype <- iso_abundance_single_data %>% dplyr::selec
   mutate(genotype = gsub("Abundance_WT", "WT", genotype)) %>% filter(!compartment %in% NA) %>% mutate(compartment = factor(compartment, levels = c("root", "rhizo"))) %>% mutate(genotype = factor(genotype, levels = c("WT", "bx1"))) %>% mutate(compartment_genotype = interaction(compartment, genotype)) %>% mutate(compartment_genotype = factor(compartment_genotype, levels = c("root.WT", "root.bx1", "rhizo.WT", "rhizo.bx1")))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 genotype_stats <- iso_abundance_single_data_genotype %>% 
   dplyr::select(-Strain) %>% 
   unique() %>% 
@@ -819,7 +819,7 @@ genotype_stats %>% filter(!p.value.signif %in% "ns") %>% pander()
 write.csv(genotype_stats, "../Output/III_Changins/genotype_stats.csv")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 compartment_stats <- iso_abundance_single_data_genotype %>% 
   dplyr::select(-Strain) %>% 
   unique() %>% 
@@ -834,7 +834,7 @@ compartment_stats %>% filter(!p.value.signif %in% "ns") %>% pander()
 write.csv(compartment_stats, "../Output/III_Changins/compartment_stats.csv")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data_genotype %>% 
   filter(OTU %in% selected_OTU) %>% 
   dplyr::select(-Strain) %>% 
@@ -848,7 +848,7 @@ iso_abundance_single_data_genotype %>%
   labs(x="")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data_genotype %>% 
   filter(compartment %in% "root") %>% 
   filter(OTU %in% selected_OTU) %>% 
@@ -864,7 +864,7 @@ iso_abundance_single_data_genotype %>%
   labs(x="")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_single_data_genotype %>% 
   filter(compartment %in% "rhizo") %>% 
   filter(OTU %in% selected_OTU) %>% 
@@ -884,12 +884,12 @@ iso_abundance_single_data_genotype %>%
 
 
 # Export
-```{r}
+```{r, echo=F, message=F, warning=F}
 #write_rds(iso_abundance_rank, "../Output/III_Changins/iso_abundance_rank.rds")
 #write_rds(iso_abundance_single_data, "../Output/III_Changins/iso_abundance_single_data.rds")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 iso_abundance_rank_selected <- iso_abundance_rank %>% filter(OTU %in% selected_OTU)
 iso_abundance_single_data_selected <- iso_abundance_single_data %>% filter(OTU %in% selected_OTU)
 
@@ -899,13 +899,13 @@ iso_abundance_single_data_selected <- iso_abundance_single_data %>% filter(OTU %
 
 # Explore phyla and family distribution in the dataset
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 field_abundance_rank_tax <- left_join(field_abundance_rank, bTAX, by = c("OTU" ="OTU_ID"))
 
 abundance_single_data_tax <- left_join(iso_abundance_single_data_long, bTAX, by = c("OTU" ="OTU_ID"))
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 field_abundance_rank_tax_selectedOTU <- field_abundance_rank_tax %>% filter(OTU %in% selected_OTU) 
 selected_OTU_families <- field_abundance_rank_tax_selectedOTU$family
 ```
@@ -952,12 +952,12 @@ field_abundance_rank_tax_level_cols_family <- as.character(temp[,2])
 names(field_abundance_rank_tax_level_cols_family) <- temp[,1]
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 cols_family_strains <- c("#a73e62", "#004586", "#4b1f6f", "#8f9ec9", "#ff950e", "#c5000b", "#0084d1", "#7e0021", "#83caff", "#ff420e", "#ffd320", "#314004", "#aecf00", "#8b995a", "#6D4600", "#c75536", "#031e33")
 ```
 
 ## Family distribution plot
-```{r}
+```{r, echo=F, message=F, warning=F}
 field_abundance_rank_tax %>% 
   mutate(family_selected = case_when(cols_family %in% "dimgrey" ~ 1, 
                                      !cols_family %in% "dimgrey" ~ 0)) %>% 
@@ -971,7 +971,7 @@ field_abundance_rank_tax %>%
 ```
 
 ## Phylum distribution
-```{r}
+```{r, echo=F, message=F, warning=F}
 field_abundance_rank_tax_selectedOTU <- field_abundance_rank_tax %>% filter(OTU %in% selected_OTU) 
 selected_OTU_phyla <- field_abundance_rank_tax_selectedOTU$phylum
 ```
@@ -1002,7 +1002,7 @@ field_abundance_rank_tax_level_cols_phylum <- as.character(temp[,2])
 names(field_abundance_rank_tax_level_cols_phylum) <- temp[,1]
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 field_abundance_rank_tax %>% 
   mutate(phylum_selected = case_when(cols_phylum %in% "dimgrey" ~ 1, 
                                      !cols_phylum %in% "dimgrey" ~ 0)) %>% 

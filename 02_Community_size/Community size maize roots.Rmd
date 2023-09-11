@@ -119,7 +119,8 @@ CFU_GH_exp1 <- dataGH1 %>%
   scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
   theme_bw() +
   labs(x = " ",
-        y = "log10(CFU/g)")
+        y = "log10(CFU/g)",
+       title = "CFU greenhouse exp.1")
 
 CFU_GH_exp1
 
@@ -176,7 +177,8 @@ CFU_GH_exp2 <- dataGH2 %>%
   scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
   theme_bw() +
   labs(x = " ",
-        y = "log10(CFU/g)")
+        y = "log10(CFU/g)",
+       title = "CFU greenhouse exp.2")
 
 CFU_GH_exp2
 
@@ -203,7 +205,7 @@ qPCR_GH$RBBacteria <- (qPCR_GH$Mean.PCR.eff.799F904R ^ qPCR_GH$Cq.799F904R)
 qPCR_GH$RBPlant <- (qPCR_GH$Mean.PCR.eff.ZmActin1A ^ qPCR_GH$Cq.ZmActin1A)
 ```
 
-# Normality
+**Normality**:
 If the Sig. value of the Shapiro-Wilk Test is greater than 0.05, the data is normal. If it is below 0.05, the data significantly deviate from a normal distribution.
 
 ```{r, echo=F, message=F, warning=F}
@@ -251,7 +253,7 @@ qPCR_GH_exp1 <- qPCR_GH %>% filter(Batch %in% "Sept") %>%
   scale_fill_manual(values = c( "gold", "forestgreen")) +
   scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
   theme_bw() +
-  labs(x = "")
+  labs(x = "", title = "qPCR greenhouse exp.1")
 
 qPCR_GH_exp1
 
@@ -272,7 +274,7 @@ qPCR_GH_exp2 <- qPCR_GH %>% filter(Batch %in% "Okt") %>%
   scale_fill_manual(values = c( "gold", "forestgreen")) +
   scale_x_discrete(labels= c("WT", expression(paste(italic("bx1")))))+
   theme_bw() +
-  labs(x = "")
+  labs(x = "", title = "qPCR greenhouse exp.2")
 
 qPCR_GH_exp2
 
@@ -291,7 +293,7 @@ Primer_Ref = "ZmActin1A" # Assign reference name
 Primer_Tar = "799F904R" 
 ```
 
-# Normality
+**Normality**:
 If the Sig. value of the Shapiro-Wilk Test is greater than 0.05, the data is normal. If it is below 0.05, the data significantly deviate from a normal distribution.
 
 this dataset is not normally distributed for the RB value
@@ -336,7 +338,7 @@ qPCR_field_Ch <- qPCR_field %>%
   # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
   scale_fill_manual(values = c( "gold", "forestgreen")) +
   theme_bw() +
-  labs(x = "")
+  labs(x = "", title = "qPCR field Changins")
 
 qPCR_field_Ch
 
@@ -368,7 +370,7 @@ qPCR_field_Reck <- qPCR_field %>%
   # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
   scale_fill_manual(values = c( "gold", "forestgreen")) +
   theme_bw() +
-  labs(x = "")
+  labs(x = "", , title = "qPCR field Reckenholz exp.1")
 
 qPCR_field_Reck
 
@@ -399,7 +401,7 @@ qPCR_field_Au <- qPCR_field %>%
   # stat_summary(fun.data = give.n, geom = "text", fun = median, position = position_fill(0)) +
   scale_fill_manual(values = c( "gold", "forestgreen")) +
   theme_bw() +
-  labs(x = "")
+  labs(x = "", title = "qPCR field Aurora exp.1", )
 
 qPCR_field_Au
 
